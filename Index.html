@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My News & Market Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #222;
+            line-height: 1.4;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: linear-gradient(45deg, #fff, #a8d8ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .last-updated {
+            font-size: 0.75rem;
+            color: #b8d4ff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        .category-tabs {
+            display: flex;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 0.4rem 0.9rem;
+            background: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            color: #333;
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+        }
+
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.2rem;
+        }
+
+        .news-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            cursor: pointer;
+            border-left: 4px solid #ddd;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .news-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, var(--card-color), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .news-card:hover {
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            transform: translateY(-4px);
+        }
+
+        .news-card:hover::before {
+            opacity: 1;
+        }
+
+        .news-card.tech { 
+            border-left-color: #4285f4;
+            --card-color: #4285f4;
+        }
+        .news-card.business { 
+            border-left-color: #0f9d58;
+            --card-color: #0f9d58;
+        }
+        .news-card.science { 
+            border-left-color: #f4b400;
+            --card-color: #f4b400;
+        }
+        .news-card.politics { 
+            border-left-color: #db4437;
+            --card-color: #db4437;
+        }
+        .news-card.india { 
+            border-left-color: #ff6b35;
+            --card-color: #ff6b35;
+        }
+        .news-card.gurgaon { 
+            border-left-color: #6c5ce7;
+            --card-color: #6c5ce7;
+        }
+
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .category-badge {
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.5px;
+        }
+
+        .category-badge.tech { 
+            background: linear-gradient(135deg, #4285f4, #5a9aff);
+            color: white;
+        }
+        .category-badge.business { 
+            background: linear-gradient(135deg, #0f9d58, #2ecc71);
+            color: white;
+        }
+        .category-badge.science { 
+            background: linear-gradient(135deg, #f4b400, #ffd93d);
+            color: #333;
+        }
+        .category-badge.politics { 
+            background: linear-gradient(135deg, #db4437, #e74c3c);
+            color: white;
+        }
+        .category-badge.india { 
+            background: linear-gradient(135deg, #ff6b35, #ff8c42);
+            color: white;
+        }
+        .category-badge.gurgaon { 
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            color: white;
+        }
+        
+        .news-card[class*="custom_"] {
+            border-left-color: #f093fb;
+            --card-color: #f093fb;
+        }
+        
+        .category-badge[class*="custom_"] {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+        }
+
+        .time {
+            color: #666;
+        }
+
+        .news-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            line-height: 1.3;
+        }
+
+        .news-summary {
+            font-size: 0.85rem;
+            color: #555;
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+        }
+
+        .news-source {
+            font-size: 0.75rem;
+            color: #888;
+            font-style: italic;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: white;
+            font-size: 1.1rem;
+        }
+
+        .refresh-btn {
+            padding: 0.4rem 0.9rem;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(245, 87, 108, 0.3);
+            margin-right: 0.8rem;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+        }
+
+        .error {
+            background: linear-gradient(135deg, #fce8e6, #ffcccc);
+            color: #c5221f;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 15px rgba(219, 68, 55, 0.2);
+        }
+
+        .financial-dashboard {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .dashboard-title {
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 0.8rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .financial-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.6rem;
+        }
+
+        .financial-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            border-left: 3px solid #ddd;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .financial-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .financial-card.positive { 
+            border-left-color: #0f9d58;
+            background: linear-gradient(135deg, #d4f4dd 0%, #aef4c7 100%);
+        }
+        .financial-card.negative { 
+            border-left-color: #db4437;
+            background: linear-gradient(135deg, #ffd7d4 0%, #ffb3af 100%);
+        }
+        .financial-card.neutral { 
+            border-left-color: #4285f4;
+            background: linear-gradient(135deg, #dae8fc 0%, #b3d9ff 100%);
+        }
+
+        .financial-label {
+            font-size: 0.65rem;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.3rem;
+            font-weight: 700;
+        }
+
+        .financial-value {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #1a1a1a;
+            margin-bottom: 0.2rem;
+        }
+
+        .financial-change {
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .financial-change.positive { color: #0a7a3e; }
+        .financial-change.negative { color: #a91e13; }
+        .financial-change.neutral { color: #1a5490; }
+
+        .fii-dii-section {
+            background: linear-gradient(135deg, #e0e7ff 0%, #cfd9ff 100%);
+            border-radius: 8px;
+            padding: 0.8rem;
+            margin-bottom: 0.8rem;
+            border-left: 3px solid #4285f4;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.1);
+        }
+
+        .fii-dii-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 0.6rem;
+            margin-top: 0.5rem;
+        }
+
+        .fii-dii-item {
+            text-align: center;
+            background: white;
+            padding: 0.5rem;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+
+        .fii-dii-label {
+            font-size: 0.65rem;
+            color: #666;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .fii-dii-value {
+            font-size: 0.95rem;
+            font-weight: 800;
+        }
+
+        .fii-dii-value.positive { color: #0a7a3e; }
+        .fii-dii-value.negative { color: #a91e13; }
+
+        .settings-btn {
+            padding: 0.4rem 0.9rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            margin-right: 0.8rem;
+        }
+
+        .settings-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .settings-section {
+            margin-bottom: 2rem;
+        }
+
+        .settings-section h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.8rem;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .checkbox-item:hover {
+            background: #e9ecef;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .checkbox-item label {
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+
+        .save-btn {
+            padding: 0.8rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .custom-topic-input {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+        }
+
+        .custom-topic-input input {
+            flex: 1;
+            padding: 0.6rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        .custom-topic-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .add-topic-btn {
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(135deg, #0f9d58 0%, #2ecc71 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 700;
+            transition: all 0.3s;
+        }
+
+        .add-topic-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(15, 157, 88, 0.3);
+        }
+
+        .custom-topics-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+        }
+
+        .custom-topic-tag {
+            padding: 0.4rem 0.8rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .remove-topic-btn {
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+        }
+
+        .remove-topic-btn:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1 id="greetingTitle">🌟 Your Personal News Board</h1>
+            <div>
+                <button class="settings-btn" onclick="openSettings()">⚙️ Customize</button>
+                <button class="refresh-btn" onclick="refreshAll()">↻ Refresh All</button>
+                <span class="last-updated" id="lastUpdated"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">⚙️ Customize Your Dashboard</h2>
+                <button class="close-btn" onclick="closeSettings()">×</button>
+            </div>
+
+            <!-- Personalization Settings -->
+            <div class="settings-section">
+                <h3>👤 Personalization</h3>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.8rem;">Customize how we greet you on your dashboard</p>
+                <div style="display: flex; gap: 1rem; flex-direction: column;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 0.5rem;">Your Name</label>
+                        <input type="text" id="userName" placeholder="Enter your name (optional)" 
+                               style="width: 100%; padding: 0.7rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem;">
+                        <p style="font-size: 0.75rem; color: #888; margin-top: 0.3rem;">Leave empty for default greeting</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Data Settings -->
+            <div class="settings-section">
+                <h3>📊 Market Data</h3>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showSensex" checked>
+                        <label for="showSensex">Sensex</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showNifty" checked>
+                        <label for="showNifty">Nifty 50</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showDow" checked>
+                        <label for="showDow">Dow Jones</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showForex" checked>
+                        <label for="showForex">USD/INR</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showGold" checked>
+                        <label for="showGold">Gold</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showSilver" checked>
+                        <label for="showSilver">Silver</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showFIIDII" checked>
+                        <label for="showFIIDII">FII/DII Data</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- News Categories Settings -->
+            <div class="settings-section">
+                <h3>📰 News Categories</h3>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showIndia" checked>
+                        <label for="showIndia">🇮🇳 India</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showGurgaon" checked>
+                        <label for="showGurgaon">🏙️ Gurgaon</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showTech" checked>
+                        <label for="showTech">💻 Technology & AI</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showBusiness" checked>
+                        <label for="showBusiness">💼 Business</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showScience" checked>
+                        <label for="showScience">🔬 Science</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="showPolitics" checked>
+                        <label for="showPolitics">⚖️ Politics</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Topics -->
+            <div class="settings-section">
+                <h3>✨ Custom News Topics</h3>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.8rem;">Add your own topics to follow specific news</p>
+                <div class="custom-topic-input">
+                    <input type="text" id="customTopicInput" placeholder="e.g., Electric Vehicles, Cryptocurrency, Space...">
+                    <button class="add-topic-btn" onclick="addCustomTopic()">+ Add</button>
+                </div>
+                <div class="custom-topics-list" id="customTopicsList"></div>
+            </div>
+
+            <button class="save-btn" onclick="saveSettings()">💾 Save Preferences</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Financial Dashboard -->
+        <div class="financial-dashboard">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                <div class="dashboard-title" id="dashboardTitle">📊 Market Dashboard</div>
+                <div style="display: flex; gap: 1rem; font-size: 0.75rem; font-weight: 600;">
+                    <div style="text-align: center;">
+                        <div style="color: #666; font-size: 0.65rem;">🇮🇳 India</div>
+                        <div style="color: #1a1a1a;" id="indiaTime">--:--</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="color: #666; font-size: 0.65rem;">🇬🇧 UK</div>
+                        <div style="color: #1a1a1a;" id="ukTime">--:--</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- FII/DII Section -->
+            <div class="fii-dii-section">
+                <div class="financial-label">Foreign & Domestic Institutional Investment (₹ Crores)</div>
+                <div class="fii-dii-grid">
+                    <div class="fii-dii-item">
+                        <div class="fii-dii-label">FII Net</div>
+                        <div class="fii-dii-value positive" id="fiiNet">+₹2,450</div>
+                    </div>
+                    <div class="fii-dii-item">
+                        <div class="fii-dii-label">DII Net</div>
+                        <div class="fii-dii-value positive" id="diiNet">+₹3,120</div>
+                    </div>
+                    <div class="fii-dii-item">
+                        <div class="fii-dii-label">FII MTD</div>
+                        <div class="fii-dii-value negative" id="fiiMtd">-₹8,350</div>
+                    </div>
+                    <div class="fii-dii-item">
+                        <div class="fii-dii-label">DII MTD</div>
+                        <div class="fii-dii-value positive" id="diiMtd">+₹12,780</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Indices and Data -->
+            <div class="financial-grid">
+                <div class="financial-card positive">
+                    <div class="financial-label">Sensex</div>
+                    <div class="financial-value" id="sensexValue">79,486.32</div>
+                    <div class="financial-change positive" id="sensexChange">
+                        <span>▲</span>
+                        <span>+245.67 (+0.31%)</span>
+                    </div>
+                </div>
+
+                <div class="financial-card positive">
+                    <div class="financial-label">Nifty 50</div>
+                    <div class="financial-value" id="niftyValue">24,123.45</div>
+                    <div class="financial-change positive" id="niftyChange">
+                        <span>▲</span>
+                        <span>+78.90 (+0.33%)</span>
+                    </div>
+                </div>
+
+                <div class="financial-card negative">
+                    <div class="financial-label">Dow Jones</div>
+                    <div class="financial-value" id="dowValue">43,892.15</div>
+                    <div class="financial-change negative" id="dowChange">
+                        <span>▼</span>
+                        <span>-128.45 (-0.29%)</span>
+                    </div>
+                </div>
+
+                <div class="financial-card positive">
+                    <div class="financial-label">USD/INR</div>
+                    <div class="financial-value" id="usdInrValue">83.24</div>
+                    <div class="financial-change positive" id="usdInrChange">
+                        <span>▲</span>
+                        <span>+0.15 (+0.18%)</span>
+                    </div>
+                </div>
+
+                <div class="financial-card positive">
+                    <div class="financial-label">Gold (₹/10g)</div>
+                    <div class="financial-value" id="goldValue">62,340</div>
+                    <div class="financial-change positive" id="goldChange">
+                        <span>▲</span>
+                        <span>+180 (+0.29%)</span>
+                    </div>
+                </div>
+
+                <div class="financial-card negative">
+                    <div class="financial-label">Silver (₹/kg)</div>
+                    <div class="financial-value" id="silverValue">74,850</div>
+                    <div class="financial-change negative" id="silverChange">
+                        <span>▼</span>
+                        <span>-220 (-0.29%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="category-tabs">
+            <div class="tab active" data-category="all">🌍 All News</div>
+            <div class="tab" data-category="india">🇮🇳 India</div>
+            <div class="tab" data-category="gurgaon">🏙️ Gurgaon</div>
+            <div class="tab" data-category="tech">💻 Technology & AI</div>
+            <div class="tab" data-category="business">💼 Business & Finance</div>
+            <div class="tab" data-category="science">🔬 Science</div>
+            <div class="tab" data-category="politics">⚖️ Politics</div>
+        </div>
+
+        <div id="newsContainer" class="news-grid">
+            <div class="loading">Loading your personalized news...</div>
+        </div>
+    </div>
+
+    <script>
+        let allNews = [];
+        let currentCategory = 'all';
+        let customTopics = [];
+        
+        // User Preferences - stored in localStorage
+        let userPreferences = {
+            userName: '',
+            markets: {
+                sensex: true,
+                nifty: true,
+                dow: true,
+                forex: true,
+                gold: true,
+                silver: true,
+                fiiDii: true
+            },
+            newsCategories: {
+                india: true,
+                gurgaon: true,
+                tech: true,
+                business: true,
+                science: true,
+                politics: true
+            },
+            customTopics: []
+        };
+
+        // Load preferences from localStorage
+        function loadPreferences() {
+            const saved = localStorage.getItem('dashboardPreferences');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    userPreferences = { ...userPreferences, ...parsed };
+                    customTopics = userPreferences.customTopics || [];
+                } catch (e) {
+                    console.error('Error loading preferences:', e);
+                }
+            }
+            applyPreferences();
+        }
+
+        // Save preferences to localStorage
+        function savePreferences() {
+            localStorage.setItem('dashboardPreferences', JSON.stringify(userPreferences));
+        }
+
+        // Apply preferences to UI
+        function applyPreferences() {
+            // Apply market data visibility
+            const marketElements = {
+                sensex: document.querySelector('.financial-card:has(#sensexValue)'),
+                nifty: document.querySelector('.financial-card:has(#niftyValue)'),
+                dow: document.querySelector('.financial-card:has(#dowValue)'),
+                forex: document.querySelector('.financial-card:has(#usdInrValue)'),
+                gold: document.querySelector('.financial-card:has(#goldValue)'),
+                silver: document.querySelector('.financial-card:has(#silverValue)')
+            };
+
+            Object.keys(marketElements).forEach(key => {
+                if (marketElements[key]) {
+                    marketElements[key].style.display = userPreferences.markets[key] ? 'block' : 'none';
+                }
+            });
+
+            // Apply FII/DII visibility
+            const fiiDiiSection = document.querySelector('.fii-dii-section');
+            if (fiiDiiSection) {
+                fiiDiiSection.style.display = userPreferences.markets.fiiDii ? 'block' : 'none';
+            }
+
+            // Update greeting
+            updateGreeting();
+
+            // Update tabs based on preferences
+            updateTabs();
+            
+            // Update custom topics display
+            updateCustomTopicsDisplay();
+        }
+
+        // Update greeting based on time and user name
+        function updateGreeting() {
+            const now = new Date();
+            const hour = now.getHours();
+            let greeting = '';
+            let emoji = '';
+
+            if (hour >= 5 && hour < 12) {
+                greeting = 'Good Morning';
+                emoji = '🌅';
+            } else if (hour >= 12 && hour < 17) {
+                greeting = 'Good Afternoon';
+                emoji = '☀️';
+            } else if (hour >= 17 && hour < 21) {
+                greeting = 'Good Evening';
+                emoji = '🌆';
+            } else {
+                greeting = 'Good Night';
+                emoji = '🌙';
+            }
+
+            const userName = userPreferences.userName.trim();
+            const greetingElement = document.getElementById('greetingTitle');
+            
+            if (userName) {
+                greetingElement.textContent = `${emoji} ${greeting}, ${userName}'s Personal News Board`;
+            } else {
+                greetingElement.textContent = `${emoji} ${greeting} - Your Personal News Board`;
+            }
+        }
+
+        // Update tabs based on active categories
+        function updateTabs() {
+            const tabsContainer = document.querySelector('.category-tabs');
+            const categoryConfig = {
+                india: { icon: '🇮🇳', label: 'India', category: 'india' },
+                gurgaon: { icon: '🏙️', label: 'Gurgaon', category: 'gurgaon' },
+                tech: { icon: '💻', label: 'Technology & AI', category: 'tech' },
+                business: { icon: '💼', label: 'Business & Finance', category: 'business' },
+                science: { icon: '🔬', label: 'Science', category: 'science' },
+                politics: { icon: '⚖️', label: 'Politics', category: 'politics' }
+            };
+
+            let tabsHTML = '<div class="tab active" data-category="all">🌍 All News</div>';
+            
+            Object.keys(categoryConfig).forEach(key => {
+                if (userPreferences.newsCategories[key]) {
+                    const config = categoryConfig[key];
+                    tabsHTML += `<div class="tab" data-category="${config.category}">${config.icon} ${config.label}</div>`;
+                }
+            });
+
+            // Add custom topic tabs
+            customTopics.forEach((topic, index) => {
+                tabsHTML += `<div class="tab" data-category="custom_${index}">✨ ${topic}</div>`;
+            });
+
+            tabsContainer.innerHTML = tabsHTML;
+
+            // Re-attach event listeners
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentCategory = tab.dataset.category;
+                    displayNews();
+                });
+            });
+        }
+
+        // Settings Modal Functions
+        function openSettings() {
+            // Load personalization
+            document.getElementById('userName').value = userPreferences.userName || '';
+            
+            // Load current preferences into checkboxes
+            document.getElementById('showSensex').checked = userPreferences.markets.sensex;
+            document.getElementById('showNifty').checked = userPreferences.markets.nifty;
+            document.getElementById('showDow').checked = userPreferences.markets.dow;
+            document.getElementById('showForex').checked = userPreferences.markets.forex;
+            document.getElementById('showGold').checked = userPreferences.markets.gold;
+            document.getElementById('showSilver').checked = userPreferences.markets.silver;
+            document.getElementById('showFIIDII').checked = userPreferences.markets.fiiDii;
+            
+            document.getElementById('showIndia').checked = userPreferences.newsCategories.india;
+            document.getElementById('showGurgaon').checked = userPreferences.newsCategories.gurgaon;
+            document.getElementById('showTech').checked = userPreferences.newsCategories.tech;
+            document.getElementById('showBusiness').checked = userPreferences.newsCategories.business;
+            document.getElementById('showScience').checked = userPreferences.newsCategories.science;
+            document.getElementById('showPolitics').checked = userPreferences.newsCategories.politics;
+
+            updateCustomTopicsDisplay();
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function saveSettings() {
+            // Save personalization
+            userPreferences.userName = document.getElementById('userName').value.trim();
+            
+            // Save market preferences
+            userPreferences.markets.sensex = document.getElementById('showSensex').checked;
+            userPreferences.markets.nifty = document.getElementById('showNifty').checked;
+            userPreferences.markets.dow = document.getElementById('showDow').checked;
+            userPreferences.markets.forex = document.getElementById('showForex').checked;
+            userPreferences.markets.gold = document.getElementById('showGold').checked;
+            userPreferences.markets.silver = document.getElementById('showSilver').checked;
+            userPreferences.markets.fiiDii = document.getElementById('showFIIDII').checked;
+
+            // Save news category preferences
+            userPreferences.newsCategories.india = document.getElementById('showIndia').checked;
+            userPreferences.newsCategories.gurgaon = document.getElementById('showGurgaon').checked;
+            userPreferences.newsCategories.tech = document.getElementById('showTech').checked;
+            userPreferences.newsCategories.business = document.getElementById('showBusiness').checked;
+            userPreferences.newsCategories.science = document.getElementById('showScience').checked;
+            userPreferences.newsCategories.politics = document.getElementById('showPolitics').checked;
+
+            // Save custom topics
+            userPreferences.customTopics = customTopics;
+
+            savePreferences();
+            applyPreferences();
+            closeSettings();
+            
+            // Refresh news with new preferences
+            fetchNews();
+        }
+
+        function addCustomTopic() {
+            const input = document.getElementById('customTopicInput');
+            const topic = input.value.trim();
+            
+            if (topic && !customTopics.includes(topic)) {
+                customTopics.push(topic);
+                input.value = '';
+                updateCustomTopicsDisplay();
+            }
+        }
+
+        function removeCustomTopic(index) {
+            customTopics.splice(index, 1);
+            updateCustomTopicsDisplay();
+        }
+
+        function updateCustomTopicsDisplay() {
+            const container = document.getElementById('customTopicsList');
+            container.innerHTML = customTopics.map((topic, index) => `
+                <div class="custom-topic-tag">
+                    ${topic}
+                    <button class="remove-topic-btn" onclick="removeCustomTopic(${index})">×</button>
+                </div>
+            `).join('');
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('settingsModal');
+            if (e.target === modal) {
+                closeSettings();
+            }
+        });
+
+        // API Keys and Configuration
+        const NEWS_API_KEY = 'YOUR_NEWS_API_KEY'; // User needs to add their own key
+        const ALPHA_VANTAGE_KEY = 'demo'; // Demo key for testing
+
+        // Fetch real financial data
+        async function fetchFinancialData() {
+            try {
+                // Fetch multiple financial data points
+                const promises = [
+                    fetchSensexData(),
+                    fetchNiftyData(),
+                    fetchDowJonesData(),
+                    fetchForexData(),
+                    fetchGoldSilverData(),
+                    fetchFIIDIIData()
+                ];
+
+                await Promise.allSettled(promises);
+            } catch (error) {
+                console.error('Error fetching financial data:', error);
+            }
+        }
+
+        async function fetchSensexData() {
+            try {
+                // Using Yahoo Finance API alternative or similar
+                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EBSESN?interval=1d&range=1d');
+                const data = await response.json();
+                
+                if (data.chart.result && data.chart.result[0]) {
+                    const result = data.chart.result[0];
+                    const quote = result.meta;
+                    const currentPrice = quote.regularMarketPrice;
+                    const previousClose = quote.chartPreviousClose;
+                    const change = currentPrice - previousClose;
+                    const changePercent = (change / previousClose) * 100;
+
+                    updateMarketValue('sensex', {
+                        value: currentPrice.toFixed(2),
+                        change: change.toFixed(2),
+                        percent: changePercent.toFixed(2)
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching Sensex data:', error);
+                // Use fallback data
+                updateMarketValue('sensex', {
+                    value: '79486.32',
+                    change: '245.67',
+                    percent: '0.31'
+                });
+            }
+        }
+
+        async function fetchNiftyData() {
+            try {
+                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1d');
+                const data = await response.json();
+                
+                if (data.chart.result && data.chart.result[0]) {
+                    const result = data.chart.result[0];
+                    const quote = result.meta;
+                    const currentPrice = quote.regularMarketPrice;
+                    const previousClose = quote.chartPreviousClose;
+                    const change = currentPrice - previousClose;
+                    const changePercent = (change / previousClose) * 100;
+
+                    updateMarketValue('nifty', {
+                        value: currentPrice.toFixed(2),
+                        change: change.toFixed(2),
+                        percent: changePercent.toFixed(2)
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching Nifty data:', error);
+                // Use fallback data
+                updateMarketValue('nifty', {
+                    value: '24123.45',
+                    change: '78.90',
+                    percent: '0.33'
+                });
+            }
+        }
+
+        async function fetchDowJonesData() {
+            try {
+                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EDJI?interval=1d&range=1d');
+                const data = await response.json();
+                
+                if (data.chart.result && data.chart.result[0]) {
+                    const result = data.chart.result[0];
+                    const quote = result.meta;
+                    const currentPrice = quote.regularMarketPrice;
+                    const previousClose = quote.chartPreviousClose;
+                    const change = currentPrice - previousClose;
+                    const changePercent = (change / previousClose) * 100;
+
+                    updateMarketValue('dow', {
+                        value: currentPrice.toFixed(2),
+                        change: change.toFixed(2),
+                        percent: changePercent.toFixed(2)
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching Dow Jones data:', error);
+                updateMarketValue('dow', {
+                    value: '43892.15',
+                    change: '-128.45',
+                    percent: '-0.29'
+                });
+            }
+        }
+
+        async function fetchForexData() {
+            try {
+                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/USDINR=X?interval=1d&range=1d');
+                const data = await response.json();
+                
+                if (data.chart.result && data.chart.result[0]) {
+                    const result = data.chart.result[0];
+                    const quote = result.meta;
+                    const currentPrice = quote.regularMarketPrice;
+                    const previousClose = quote.chartPreviousClose;
+                    const change = currentPrice - previousClose;
+                    const changePercent = (change / previousClose) * 100;
+
+                    updateMarketValue('usdInr', {
+                        value: currentPrice.toFixed(2),
+                        change: change.toFixed(2),
+                        percent: changePercent.toFixed(2)
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching Forex data:', error);
+                updateMarketValue('usdInr', {
+                    value: '83.24',
+                    change: '0.15',
+                    percent: '0.18'
+                });
+            }
+        }
+
+        async function fetchGoldSilverData() {
+            try {
+                // Fetch Gold
+                const goldResponse = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d');
+                const goldData = await goldResponse.json();
+                
+                if (goldData.chart.result && goldData.chart.result[0]) {
+                    const result = goldData.chart.result[0];
+                    const quote = result.meta;
+                    const currentPrice = quote.regularMarketPrice;
+                    const previousClose = quote.chartPreviousClose;
+                    const change = currentPrice - previousClose;
+                    const changePercent = (change / previousClose) * 100;
+
+                    // Convert to INR (approximate conversion)
+                    const goldInr = (currentPrice * 83.24 * 10 / 31.1035).toFixed(0);
+                    const changeInr = (change * 83.24 * 10 / 31.1035).toFixed(0);
+
+                    updateMarketValue('gold', {
+                        value: goldInr,
+                        change: changeInr,
+                        percent: changePercent.toFixed(2)
+                    });
+                }
+
+                // Fetch Silver
+                const silverResponse = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/SI=F?interval=1d&range=1d');
+                const silverData = await silverResponse.json();
+                
+                if (silverData.chart.result && silverData.chart.result[0]) {
+                    const result = silverData.chart.result[0];
+                    const quote = result.meta;
+                    const currentPrice = quote.regularMarketPrice;
+                    const previousClose = quote.chartPreviousClose;
+                    const change = currentPrice - previousClose;
+                    const changePercent = (change / previousClose) * 100;
+
+                    // Convert to INR per kg
+                    const silverInr = (currentPrice * 83.24 * 1000 / 31.1035).toFixed(0);
+                    const changeInr = (change * 83.24 * 1000 / 31.1035).toFixed(0);
+
+                    updateMarketValue('silver', {
+                        value: silverInr,
+                        change: changeInr,
+                        percent: changePercent.toFixed(2)
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching Gold/Silver data:', error);
+                updateMarketValue('gold', {
+                    value: '62340',
+                    change: '180',
+                    percent: '0.29'
+                });
+                updateMarketValue('silver', {
+                    value: '74850',
+                    change: '-220',
+                    percent: '-0.29'
+                });
+            }
+        }
+
+        async function fetchFIIDIIData() {
+            // Note: FII/DII data requires specialized Indian market data APIs
+            // Using simulated data as real-time FII/DII requires paid APIs like NSE or BSE
+            try {
+                // Simulated FII/DII data - replace with actual API when available
+                const fiiDiiData = {
+                    fiiNet: (Math.random() * 5000 - 2500).toFixed(0),
+                    fiiMtd: (Math.random() * 20000 - 10000).toFixed(0),
+                    diiNet: (Math.random() * 5000 - 1000).toFixed(0),
+                    diiMtd: (Math.random() * 25000 - 5000).toFixed(0)
+                };
+
+                updateValue('fiiNet', fiiDiiData.fiiNet, '₹');
+                updateValue('fiiMtd', fiiDiiData.fiiMtd, '₹');
+                updateValue('diiNet', fiiDiiData.diiNet, '₹');
+                updateValue('diiMtd', fiiDiiData.diiMtd, '₹');
+            } catch (error) {
+                console.error('Error fetching FII/DII data:', error);
+            }
+        }
+
+        // Fetch news from NewsAPI
+        async function fetchNews() {
+            allNews = [];
+            
+            try {
+                const fetchPromises = [];
+
+                // Fetch enabled standard categories
+                if (userPreferences.newsCategories.india) {
+                    fetchPromises.push(fetchNewsCategory('India', 'india'));
+                }
+                if (userPreferences.newsCategories.gurgaon) {
+                    fetchPromises.push(fetchNewsCategory('Gurgaon OR Gurugram', 'gurgaon'));
+                }
+                if (userPreferences.newsCategories.tech) {
+                    fetchPromises.push(fetchNewsCategory('technology OR AI OR artificial intelligence', 'tech'));
+                }
+                if (userPreferences.newsCategories.business) {
+                    fetchPromises.push(fetchNewsCategory('business OR finance OR economy', 'business'));
+                }
+                if (userPreferences.newsCategories.science) {
+                    fetchPromises.push(fetchNewsCategory('science OR research OR space', 'science'));
+                }
+                if (userPreferences.newsCategories.politics) {
+                    fetchPromises.push(fetchNewsCategory('politics OR government OR election', 'politics'));
+                }
+
+                // Fetch custom topics
+                customTopics.forEach((topic, index) => {
+                    fetchPromises.push(fetchNewsCategory(topic, `custom_${index}`));
+                });
+
+                const results = await Promise.all(fetchPromises);
+                allNews = results.flat();
+                
+                // Shuffle and limit
+                allNews = shuffleArray(allNews).slice(0, 40);
+                
+            } catch (error) {
+                console.error('Error fetching news:', error);
+                // Use fallback sample news
+                allNews = getSampleNews();
+            }
+            
+            displayNews();
+        }
+
+        async function fetchNewsCategory(query, category) {
+            try {
+                // Using NewsAPI - users need to get their own free API key from newsapi.org
+                const apiKey = NEWS_API_KEY === 'YOUR_NEWS_API_KEY' ? null : NEWS_API_KEY;
+                
+                if (!apiKey) {
+                    // Return sample data if no API key
+                    return getSampleNewsByCategory(category);
+                }
+
+                const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+                
+                const data = await response.json();
+                
+                return data.articles.map(article => ({
+                    id: Math.random().toString(36).substr(2, 9),
+                    category: category,
+                    title: article.title,
+                    summary: article.description || article.content?.substring(0, 150) + '...' || 'No summary available',
+                    source: article.source.name,
+                    time: getRelativeTime(article.publishedAt),
+                    url: article.url
+                }));
+            } catch (error) {
+                console.error(`Error fetching ${category} news:`, error);
+                return getSampleNewsByCategory(category);
+            }
+        }
+
+        function getSampleNewsByCategory(category) {
+            const samplesByCategory = {
+                india: [
+                    {
+                        category: 'india',
+                        title: 'India\'s GDP Growth Exceeds Expectations for Q4',
+                        summary: 'The Indian economy demonstrates robust growth, surpassing analyst predictions with strong performance in manufacturing and services sectors.',
+                        source: 'Economic Times',
+                        time: '2 hours ago'
+                    },
+                    {
+                        category: 'india',
+                        title: 'New Digital Infrastructure Initiative Announced',
+                        summary: 'Government unveils comprehensive plan to expand digital connectivity across rural India, aiming to bridge the digital divide.',
+                        source: 'The Hindu',
+                        time: '4 hours ago'
+                    }
+                ],
+                gurgaon: [
+                    {
+                        category: 'gurgaon',
+                        title: 'Gurgaon Metro Extension Project Progresses Ahead of Schedule',
+                        summary: 'New metro line connecting Cyber City to Dwarka Expressway shows significant progress, expected to ease traffic congestion.',
+                        source: 'Times of India',
+                        time: '1 hour ago'
+                    },
+                    {
+                        category: 'gurgaon',
+                        title: 'Tech Hub Expansion: Major IT Companies to Establish New Offices',
+                        summary: 'Leading technology firms announce plans for expanded operations in Gurgaon, creating thousands of new job opportunities.',
+                        source: 'Hindustan Times',
+                        time: '3 hours ago'
+                    }
+                ],
+                tech: [
+                    {
+                        category: 'tech',
+                        title: 'New AI Model Achieves Breakthrough in Natural Language Understanding',
+                        summary: 'Researchers unveil revolutionary approach to language processing that significantly improves contextual comprehension.',
+                        source: 'Tech Review',
+                        time: '2 hours ago'
+                    }
+                ],
+                business: [
+                    {
+                        category: 'business',
+                        title: 'Global Markets Rally on Positive Economic Indicators',
+                        summary: 'Stock markets see significant gains as manufacturing data exceeds expectations and inflation shows cooling signs.',
+                        source: 'Financial Times',
+                        time: '1 hour ago'
+                    }
+                ],
+                science: [
+                    {
+                        category: 'science',
+                        title: 'Quantum Computing Reaches New Milestone',
+                        summary: 'Scientists demonstrate novel error correction technique paving way for practical quantum computers.',
+                        source: 'Science Daily',
+                        time: '3 hours ago'
+                    }
+                ],
+                politics: [
+                    {
+                        category: 'politics',
+                        title: 'International Climate Summit Announces New Emissions Targets',
+                        summary: 'World leaders commit to ambitious carbon reduction goals following intense negotiations.',
+                        source: 'Global News',
+                        time: '4 hours ago'
+                    }
+                ]
+            };
+
+            return (samplesByCategory[category] || []).map(news => ({
+                ...news,
+                id: Math.random().toString(36).substr(2, 9),
+                url: '#'
+            }));
+        }
+
+        function getSampleNews() {
+            return [
+                ...getSampleNewsByCategory('india'),
+                ...getSampleNewsByCategory('gurgaon'),
+                ...getSampleNewsByCategory('tech'),
+                ...getSampleNewsByCategory('business'),
+                ...getSampleNewsByCategory('science'),
+                ...getSampleNewsByCategory('politics')
+            ];
+        }
+
+        function getRelativeTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+            if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+            return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+        }
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        function updateValue(id, value, prefix = '') {
+            const element = document.getElementById(id);
+            const numValue = parseFloat(value);
+            const sign = numValue >= 0 ? '+' : '';
+            element.textContent = `${sign}${prefix}${formatNumber(value)}`;
+            element.className = `fii-dii-value ${numValue >= 0 ? 'positive' : 'negative'}`;
+        }
+
+        function updateMarketValue(prefix, data) {
+            const valueEl = document.getElementById(`${prefix}Value`);
+            const changeEl = document.getElementById(`${prefix}Change`);
+            const cardEl = valueEl.closest('.financial-card');
+            
+            const change = parseFloat(data.change);
+            const isPositive = change >= 0;
+            
+            valueEl.textContent = formatNumber(data.value);
+            
+            const arrow = isPositive ? '▲' : '▼';
+            const sign = isPositive ? '+' : '';
+            changeEl.innerHTML = `
+                <span>${arrow}</span>
+                <span>${sign}${formatNumber(data.change)} (${sign}${data.percent}%)</span>
+            `;
+            
+            changeEl.className = `financial-change ${isPositive ? 'positive' : 'negative'}`;
+            cardEl.className = `financial-card ${isPositive ? 'positive' : 'negative'}`;
+        }
+
+        function formatNumber(num) {
+            const value = parseFloat(num);
+            if (Math.abs(value) >= 1000) {
+                return value.toLocaleString('en-IN');
+            }
+            return num;
+        }
+
+        function displayNews() {
+            const container = document.getElementById('newsContainer');
+            let newsToShow = currentCategory === 'all' 
+                ? allNews 
+                : allNews.filter(n => n.category === currentCategory);
+            
+            if (newsToShow.length === 0) {
+                container.innerHTML = '<div class="loading">📰 Loading news for this category...</div>';
+                return;
+            }
+
+            container.innerHTML = newsToShow.map(news => `
+                <div class="news-card ${news.category}" onclick="openNews('${news.url}')">
+                    <div class="news-meta">
+                        <span class="category-badge ${news.category}">${getCategoryName(news.category)}</span>
+                        <span class="time">${news.time}</span>
+                    </div>
+                    <div class="news-title">${news.title}</div>
+                    <div class="news-summary">${news.summary}</div>
+                    <div class="news-source">${news.source}</div>
+                </div>
+            `).join('');
+        }
+
+        function getCategoryName(category) {
+            const names = {
+                'tech': 'Tech & AI',
+                'business': 'Business',
+                'science': 'Science',
+                'politics': 'Politics',
+                'india': 'India',
+                'gurgaon': 'Gurgaon'
+            };
+            
+            // Check if it's a custom category
+            if (category.startsWith('custom_')) {
+                const index = parseInt(category.split('_')[1]);
+                return customTopics[index] || 'Custom';
+            }
+            
+            return names[category] || category;
+        }
+
+        function updateLastUpdated() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-IN', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            document.getElementById('lastUpdated').textContent = `Updated at ${timeStr}`;
+            
+            // Update dashboard date
+            updateDashboardDate();
+            
+            // Update UK and India times
+            updateWorldTimes();
+        }
+
+        function updateDashboardDate() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-IN', { 
+                weekday: 'short',
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric'
+            });
+            document.getElementById('dashboardTitle').textContent = `📊 Market Dashboard - ${dateStr}`;
+        }
+
+        function updateWorldTimes() {
+            const now = new Date();
+            
+            // India Time (IST - UTC+5:30)
+            const indiaTime = now.toLocaleTimeString('en-IN', { 
+                timeZone: 'Asia/Kolkata',
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true
+            });
+            document.getElementById('indiaTime').textContent = indiaTime;
+            
+            // UK Time (GMT/BST)
+            const ukTime = now.toLocaleTimeString('en-GB', { 
+                timeZone: 'Europe/London',
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true
+            });
+            document.getElementById('ukTime').textContent = ukTime;
+        }
+
+        function openNews(url) {
+            if (url && url !== '#') {
+                window.open(url, '_blank');
+            }
+        }
+
+        function refreshAll() {
+            fetchFinancialData();
+            fetchNews();
+            updateLastUpdated();
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentCategory = tab.dataset.category;
+                displayNews();
+            });
+        });
+
+        // Load preferences first, then load data
+        loadPreferences();
+        refreshAll();
+
+        // Auto-refresh financial data every 2 minutes
+        setInterval(fetchFinancialData, 2 * 60 * 1000);
+        
+        // Auto-refresh news every 10 minutes
+        setInterval(fetchNews, 10 * 60 * 1000);
+        
+        // Update world times every second for live clock
+        setInterval(updateWorldTimes, 1000);
+        
+        // Update greeting every minute in case time period changes
+        setInterval(updateGreeting, 60 * 1000);
+    </script>
+</body>
+</html>
