@@ -606,6 +606,68 @@
         .remove-topic-btn:hover {
             background: rgba(255, 255, 255, 0.5);
         }
+
+        .weather-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .weather-main {
+            flex: 1;
+        }
+
+        .weather-location {
+            font-size: 0.9rem;
+            font-weight: 600;
+            opacity: 0.9;
+            margin-bottom: 0.3rem;
+        }
+
+        .weather-temp {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 0.3rem;
+        }
+
+        .weather-condition {
+            font-size: 0.85rem;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+
+        .weather-details {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .weather-detail-item {
+            text-align: center;
+        }
+
+        .weather-detail-label {
+            font-size: 0.65rem;
+            opacity: 0.8;
+            margin-bottom: 0.2rem;
+        }
+
+        .weather-detail-value {
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .weather-icon {
+            font-size: 3rem;
+            line-height: 1;
+        }
     </style>
 </head>
 <body>
@@ -639,6 +701,23 @@
                                style="width: 100%; padding: 0.7rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem;">
                         <p style="font-size: 0.75rem; color: #888; margin-top: 0.3rem;">Leave empty for default greeting</p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Weather Settings -->
+            <div class="settings-section">
+                <h3>🌤️ Weather</h3>
+                <div style="margin-bottom: 0.8rem;">
+                    <div class="checkbox-item" style="display: inline-flex; width: auto;">
+                        <input type="checkbox" id="showWeather" checked>
+                        <label for="showWeather">Show local weather</label>
+                    </div>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 0.5rem;">Custom Location (Optional)</label>
+                    <input type="text" id="weatherLocation" placeholder="e.g., Gurgaon, Delhi, Mumbai..." 
+                           style="width: 100%; padding: 0.7rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem;">
+                    <p style="font-size: 0.75rem; color: #888; margin-top: 0.3rem;">Leave empty to auto-detect your location</p>
                 </div>
             </div>
 
@@ -724,6 +803,30 @@
     </div>
 
     <div class="container">
+        <!-- Weather Card -->
+        <div class="weather-card" id="weatherCard" style="display: none;">
+            <div class="weather-main">
+                <div class="weather-location" id="weatherLocation">Loading location...</div>
+                <div class="weather-temp" id="weatherTemp">--°</div>
+                <div class="weather-condition" id="weatherCondition">--</div>
+            </div>
+            <div class="weather-details">
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Feels Like</div>
+                    <div class="weather-detail-value" id="weatherFeelsLike">--°</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Humidity</div>
+                    <div class="weather-detail-value" id="weatherHumidity">--%</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Wind</div>
+                    <div class="weather-detail-value" id="weatherWind">-- km/h</div>
+                </div>
+                <div class="weather-icon" id="weatherIcon">🌤️</div>
+            </div>
+        </div>
+
         <!-- Financial Dashboard -->
         <div class="financial-dashboard">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
@@ -844,6 +947,8 @@
         // User Preferences - stored in localStorage
         let userPreferences = {
             userName: '',
+            showWeather: true,
+            weatherLocation: '',
             markets: {
                 sensex: true,
                 nifty: true,
@@ -886,6 +991,13 @@
 
         // Apply preferences to UI
         function applyPreferences() {
+            // Apply weather visibility
+            if (userPreferences.showWeather) {
+                fetchWeather();
+            } else {
+                document.getElementById('weatherCard').style.display = 'none';
+            }
+
             // Apply market data visibility
             const marketElements = {
                 sensex: document.querySelector('.financial-card:has(#sensexValue)'),
@@ -993,6 +1105,10 @@
             // Load personalization
             document.getElementById('userName').value = userPreferences.userName || '';
             
+            // Load weather preferences
+            document.getElementById('showWeather').checked = userPreferences.showWeather;
+            document.getElementById('weatherLocation').value = userPreferences.weatherLocation || '';
+            
             // Load current preferences into checkboxes
             document.getElementById('showSensex').checked = userPreferences.markets.sensex;
             document.getElementById('showNifty').checked = userPreferences.markets.nifty;
@@ -1020,6 +1136,10 @@
         function saveSettings() {
             // Save personalization
             userPreferences.userName = document.getElementById('userName').value.trim();
+            
+            // Save weather preferences
+            userPreferences.showWeather = document.getElementById('showWeather').checked;
+            userPreferences.weatherLocation = document.getElementById('weatherLocation').value.trim();
             
             // Save market preferences
             userPreferences.markets.sensex = document.getElementById('showSensex').checked;
@@ -1082,6 +1202,99 @@
                 closeSettings();
             }
         });
+
+        // Weather Functions
+        async function fetchWeather() {
+            if (!userPreferences.showWeather) {
+                document.getElementById('weatherCard').style.display = 'none';
+                return;
+            }
+
+            try {
+                let location = userPreferences.weatherLocation.trim();
+                
+                if (!location) {
+                    // Try to get location from IP
+                    location = 'Delhi'; // Default to Delhi for India
+                }
+
+                // Using Open-Meteo API (free, no key needed)
+                const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`);
+                const geoData = await geoResponse.json();
+
+                if (!geoData.results || geoData.results.length === 0) {
+                    console.error('Location not found');
+                    return;
+                }
+
+                const { latitude, longitude, name, country } = geoData.results[0];
+
+                // Fetch weather data
+                const weatherResponse = await fetch(
+                    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`
+                );
+                const weatherData = await weatherResponse.json();
+
+                if (weatherData.current) {
+                    updateWeatherDisplay({
+                        location: `${name}, ${country}`,
+                        temp: Math.round(weatherData.current.temperature_2m),
+                        feelsLike: Math.round(weatherData.current.apparent_temperature),
+                        humidity: weatherData.current.relative_humidity_2m,
+                        windSpeed: Math.round(weatherData.current.wind_speed_10m),
+                        weatherCode: weatherData.current.weather_code
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching weather:', error);
+            }
+        }
+
+        function updateWeatherDisplay(data) {
+            document.getElementById('weatherLocation').textContent = data.location;
+            document.getElementById('weatherTemp').textContent = `${data.temp}°C`;
+            document.getElementById('weatherFeelsLike').textContent = `${data.feelsLike}°C`;
+            document.getElementById('weatherHumidity').textContent = `${data.humidity}%`;
+            document.getElementById('weatherWind').textContent = `${data.windSpeed} km/h`;
+            
+            // Weather condition and icon based on WMO weather codes
+            const weatherInfo = getWeatherInfo(data.weatherCode);
+            document.getElementById('weatherCondition').textContent = weatherInfo.description;
+            document.getElementById('weatherIcon').textContent = weatherInfo.icon;
+            
+            document.getElementById('weatherCard').style.display = 'flex';
+        }
+
+        function getWeatherInfo(code) {
+            const weatherCodes = {
+                0: { description: 'Clear Sky', icon: '☀️' },
+                1: { description: 'Mainly Clear', icon: '🌤️' },
+                2: { description: 'Partly Cloudy', icon: '⛅' },
+                3: { description: 'Overcast', icon: '☁️' },
+                45: { description: 'Foggy', icon: '🌫️' },
+                48: { description: 'Foggy', icon: '🌫️' },
+                51: { description: 'Light Drizzle', icon: '🌦️' },
+                53: { description: 'Drizzle', icon: '🌦️' },
+                55: { description: 'Heavy Drizzle', icon: '🌧️' },
+                61: { description: 'Light Rain', icon: '🌧️' },
+                63: { description: 'Rain', icon: '🌧️' },
+                65: { description: 'Heavy Rain', icon: '⛈️' },
+                71: { description: 'Light Snow', icon: '🌨️' },
+                73: { description: 'Snow', icon: '❄️' },
+                75: { description: 'Heavy Snow', icon: '❄️' },
+                77: { description: 'Snow Grains', icon: '🌨️' },
+                80: { description: 'Light Showers', icon: '🌦️' },
+                81: { description: 'Showers', icon: '🌧️' },
+                82: { description: 'Heavy Showers', icon: '⛈️' },
+                85: { description: 'Light Snow Showers', icon: '🌨️' },
+                86: { description: 'Snow Showers', icon: '❄️' },
+                95: { description: 'Thunderstorm', icon: '⛈️' },
+                96: { description: 'Thunderstorm with Hail', icon: '⛈️' },
+                99: { description: 'Thunderstorm with Hail', icon: '⛈️' }
+            };
+
+            return weatherCodes[code] || { description: 'Unknown', icon: '🌤️' };
+        }
 
         // API Keys and Configuration
         const NEWS_API_KEY = 'YOUR_NEWS_API_KEY'; // User needs to add their own key
@@ -1661,6 +1874,9 @@
         
         // Auto-refresh news every 10 minutes
         setInterval(fetchNews, 10 * 60 * 1000);
+        
+        // Auto-refresh weather every 10 minutes
+        setInterval(fetchWeather, 10 * 60 * 1000);
         
         // Update world times every second for live clock
         setInterval(updateWorldTimes, 1000);
