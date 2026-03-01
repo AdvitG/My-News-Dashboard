@@ -6,7 +6,7 @@ Fetches real-time data from various APIs for the dashboard
 import requests
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import os
 from flask import Flask, jsonify
@@ -50,7 +50,11 @@ def fetch_stooq(symbol: str) -> Optional[Dict]:
         return cached
 
     try:
-        url = f'https://stooq.com/q/d/l/?s={symbol}&i=d'
+        # Limit to last 7 days — avoids getting the entire multi-decade history
+        # which causes row[0] to be from the 1890s for symbols like ^dji or usdinr
+        end_date = datetime.now().strftime('%Y%m%d')
+        start_date = (datetime.now() - timedelta(days=7)).strftime('%Y%m%d')
+        url = f'https://stooq.com/q/d/l/?s={symbol}&d1={start_date}&d2={end_date}&i=d'
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
@@ -71,7 +75,12 @@ def fetch_stooq(symbol: str) -> Optional[Dict]:
             print(f"Stooq {symbol}: no rows in CSV")
             return None
 
-        # Stooq returns newest row first
+        # Sort by Date descending — Stooq return order varies by symbol
+        try:
+            rows.sort(key=lambda r: r.get('Date', ''), reverse=True)
+        except Exception:
+            pass
+
         current_price = float(rows[0].get('Close', 0) or 0)
         if not current_price:
             print(f"Stooq {symbol}: zero/null close price")
@@ -237,7 +246,9 @@ def fetch_fii_dii_data() -> Dict:
                     result['fii_net'] = latest.get('fiiNet') or latest.get('fii_net')
                     result['dii_net'] = latest.get('diiNet') or latest.get('dii_net')
 
-                if len(data) > 1:
+                # Only compute MTD if we successfully got today's net — avoids summing
+                # 0-defaults when NSE key structure doesn't match, which produces ₹0 Cr
+                if len(data) > 1 and result['fii_net'] is not None:
                     try:
                         result['fii_mtd'] = round(sum(
                             float(r.get('fii', {}).get('netValue', 0) or 0) for r in data

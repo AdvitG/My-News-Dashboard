@@ -849,76 +849,70 @@
                 <div class="fii-dii-grid">
                     <div class="fii-dii-item">
                         <div class="fii-dii-label">FII Net</div>
-                        <div class="fii-dii-value positive" id="fiiNet">+₹2,450</div>
+                        <div class="fii-dii-value" id="fiiNet">--</div>
                     </div>
                     <div class="fii-dii-item">
                         <div class="fii-dii-label">DII Net</div>
-                        <div class="fii-dii-value positive" id="diiNet">+₹3,120</div>
+                        <div class="fii-dii-value" id="diiNet">--</div>
                     </div>
                     <div class="fii-dii-item">
                         <div class="fii-dii-label">FII MTD</div>
-                        <div class="fii-dii-value negative" id="fiiMtd">-₹8,350</div>
+                        <div class="fii-dii-value" id="fiiMtd">--</div>
                     </div>
                     <div class="fii-dii-item">
                         <div class="fii-dii-label">DII MTD</div>
-                        <div class="fii-dii-value positive" id="diiMtd">+₹12,780</div>
+                        <div class="fii-dii-value" id="diiMtd">--</div>
                     </div>
                 </div>
             </div>
 
             <!-- Market Indices and Data -->
             <div class="financial-grid">
-                <div class="financial-card positive">
+                <div class="financial-card neutral">
                     <div class="financial-label">Sensex</div>
-                    <div class="financial-value" id="sensexValue">79,486.32</div>
-                    <div class="financial-change positive" id="sensexChange">
-                        <span>▲</span>
-                        <span>+245.67 (+0.31%)</span>
+                    <div class="financial-value" id="sensexValue">--</div>
+                    <div class="financial-change neutral" id="sensexChange">
+                        <span>--</span>
                     </div>
                 </div>
 
-                <div class="financial-card positive">
+                <div class="financial-card neutral">
                     <div class="financial-label">Nifty 50</div>
-                    <div class="financial-value" id="niftyValue">24,123.45</div>
-                    <div class="financial-change positive" id="niftyChange">
-                        <span>▲</span>
-                        <span>+78.90 (+0.33%)</span>
+                    <div class="financial-value" id="niftyValue">--</div>
+                    <div class="financial-change neutral" id="niftyChange">
+                        <span>--</span>
                     </div>
                 </div>
 
-                <div class="financial-card negative">
+                <div class="financial-card neutral">
                     <div class="financial-label">Dow Jones</div>
-                    <div class="financial-value" id="dowValue">43,892.15</div>
-                    <div class="financial-change negative" id="dowChange">
-                        <span>▼</span>
-                        <span>-128.45 (-0.29%)</span>
+                    <div class="financial-value" id="dowValue">--</div>
+                    <div class="financial-change neutral" id="dowChange">
+                        <span>--</span>
                     </div>
                 </div>
 
-                <div class="financial-card positive">
+                <div class="financial-card neutral">
                     <div class="financial-label">USD/INR</div>
-                    <div class="financial-value" id="usdInrValue">83.24</div>
-                    <div class="financial-change positive" id="usdInrChange">
-                        <span>▲</span>
-                        <span>+0.15 (+0.18%)</span>
+                    <div class="financial-value" id="usdInrValue">--</div>
+                    <div class="financial-change neutral" id="usdInrChange">
+                        <span>--</span>
                     </div>
                 </div>
 
-                <div class="financial-card positive">
+                <div class="financial-card neutral">
                     <div class="financial-label">Gold (₹/10g)</div>
-                    <div class="financial-value" id="goldValue">62,340</div>
-                    <div class="financial-change positive" id="goldChange">
-                        <span>▲</span>
-                        <span>+180 (+0.29%)</span>
+                    <div class="financial-value" id="goldValue">--</div>
+                    <div class="financial-change neutral" id="goldChange">
+                        <span>--</span>
                     </div>
                 </div>
 
-                <div class="financial-card negative">
+                <div class="financial-card neutral">
                     <div class="financial-label">Silver (₹/kg)</div>
-                    <div class="financial-value" id="silverValue">74,850</div>
-                    <div class="financial-change negative" id="silverChange">
-                        <span>▼</span>
-                        <span>-220 (-0.29%)</span>
+                    <div class="financial-value" id="silverValue">--</div>
+                    <div class="financial-change neutral" id="silverChange">
+                        <span>--</span>
                     </div>
                 </div>
             </div>
@@ -1297,29 +1291,12 @@
         }
 
         // API Keys and Configuration
-        const API_BASE_URL = 'https://webproduction2b9d8.up.railway.app/api'; // Backend API URL
-        const USE_BACKEND_API = true; // Set to true to use Python backend, false to use direct APIs
-        const NEWS_API_KEY = 'YOUR_NEWS_API_KEY'; // User needs to add their own key (only if USE_BACKEND_API = false)
-        const ALPHA_VANTAGE_KEY = 'demo'; // Demo key for testing
+        const API_BASE_URL = 'https://webproduction2b9d8.up.railway.app/api';
 
         // Fetch real financial data
         async function fetchFinancialData() {
             try {
-                if (USE_BACKEND_API) {
-                    // Use backend API for all market data
-                    await fetchAllMarketDataFromBackend();
-                } else {
-                    // Fetch directly from Yahoo Finance
-                    const promises = [
-                        fetchSensexData(),
-                        fetchNiftyData(),
-                        fetchDowJonesData(),
-                        fetchForexData(),
-                        fetchGoldSilverData(),
-                        fetchFIIDIIData()
-                    ];
-                    await Promise.allSettled(promises);
-                }
+                await fetchAllMarketDataFromBackend();
             } catch (error) {
                 console.error('Error fetching financial data:', error);
             }
@@ -1386,200 +1363,11 @@
                 await fetchFIIDIIFromBackend();
 
             } catch (error) {
-                console.error('Error fetching from backend, using fallback:', error);
-                // Fallback to direct Yahoo Finance if backend is not available
-                const promises = [
-                    fetchSensexData(),
-                    fetchNiftyData(),
-                    fetchDowJonesData(),
-                    fetchForexData(),
-                    fetchGoldSilverData(),
-                    fetchFIIDIIData()
-                ];
-                await Promise.allSettled(promises);
+                console.error('Market data backend unavailable:', error);
+                fetchFIIDIIData(); // Ensure FII/DII shows N/A rather than stale placeholder
             }
         }
 
-        async function fetchSensexData() {
-            try {
-                // Using Yahoo Finance API alternative or similar
-                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EBSESN?interval=1d&range=1d');
-                const data = await response.json();
-                
-                if (data.chart.result && data.chart.result[0]) {
-                    const result = data.chart.result[0];
-                    const quote = result.meta;
-                    const currentPrice = quote.regularMarketPrice;
-                    const previousClose = quote.chartPreviousClose;
-                    const change = currentPrice - previousClose;
-                    const changePercent = (change / previousClose) * 100;
-
-                    updateMarketValue('sensex', {
-                        value: currentPrice.toFixed(2),
-                        change: change.toFixed(2),
-                        percent: changePercent.toFixed(2)
-                    });
-                }
-            } catch (error) {
-                console.error('Error fetching Sensex data:', error);
-                // Use fallback data
-                updateMarketValue('sensex', {
-                    value: '79486.32',
-                    change: '245.67',
-                    percent: '0.31'
-                });
-            }
-        }
-
-        async function fetchNiftyData() {
-            try {
-                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1d');
-                const data = await response.json();
-                
-                if (data.chart.result && data.chart.result[0]) {
-                    const result = data.chart.result[0];
-                    const quote = result.meta;
-                    const currentPrice = quote.regularMarketPrice;
-                    const previousClose = quote.chartPreviousClose;
-                    const change = currentPrice - previousClose;
-                    const changePercent = (change / previousClose) * 100;
-
-                    updateMarketValue('nifty', {
-                        value: currentPrice.toFixed(2),
-                        change: change.toFixed(2),
-                        percent: changePercent.toFixed(2)
-                    });
-                }
-            } catch (error) {
-                console.error('Error fetching Nifty data:', error);
-                // Use fallback data
-                updateMarketValue('nifty', {
-                    value: '24123.45',
-                    change: '78.90',
-                    percent: '0.33'
-                });
-            }
-        }
-
-        async function fetchDowJonesData() {
-            try {
-                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EDJI?interval=1d&range=1d');
-                const data = await response.json();
-                
-                if (data.chart.result && data.chart.result[0]) {
-                    const result = data.chart.result[0];
-                    const quote = result.meta;
-                    const currentPrice = quote.regularMarketPrice;
-                    const previousClose = quote.chartPreviousClose;
-                    const change = currentPrice - previousClose;
-                    const changePercent = (change / previousClose) * 100;
-
-                    updateMarketValue('dow', {
-                        value: currentPrice.toFixed(2),
-                        change: change.toFixed(2),
-                        percent: changePercent.toFixed(2)
-                    });
-                }
-            } catch (error) {
-                console.error('Error fetching Dow Jones data:', error);
-                updateMarketValue('dow', {
-                    value: '43892.15',
-                    change: '-128.45',
-                    percent: '-0.29'
-                });
-            }
-        }
-
-        async function fetchForexData() {
-            try {
-                const response = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/USDINR=X?interval=1d&range=1d');
-                const data = await response.json();
-                
-                if (data.chart.result && data.chart.result[0]) {
-                    const result = data.chart.result[0];
-                    const quote = result.meta;
-                    const currentPrice = quote.regularMarketPrice;
-                    const previousClose = quote.chartPreviousClose;
-                    const change = currentPrice - previousClose;
-                    const changePercent = (change / previousClose) * 100;
-
-                    updateMarketValue('usdInr', {
-                        value: currentPrice.toFixed(2),
-                        change: change.toFixed(2),
-                        percent: changePercent.toFixed(2)
-                    });
-                }
-            } catch (error) {
-                console.error('Error fetching Forex data:', error);
-                updateMarketValue('usdInr', {
-                    value: '83.24',
-                    change: '0.15',
-                    percent: '0.18'
-                });
-            }
-        }
-
-        async function fetchGoldSilverData() {
-            try {
-                // Fetch Gold
-                const goldResponse = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d');
-                const goldData = await goldResponse.json();
-                
-                if (goldData.chart.result && goldData.chart.result[0]) {
-                    const result = goldData.chart.result[0];
-                    const quote = result.meta;
-                    const currentPrice = quote.regularMarketPrice;
-                    const previousClose = quote.chartPreviousClose;
-                    const change = currentPrice - previousClose;
-                    const changePercent = (change / previousClose) * 100;
-
-                    // Convert to INR (approximate conversion)
-                    const goldInr = (currentPrice * 83.24 * 10 / 31.1035).toFixed(0);
-                    const changeInr = (change * 83.24 * 10 / 31.1035).toFixed(0);
-
-                    updateMarketValue('gold', {
-                        value: goldInr,
-                        change: changeInr,
-                        percent: changePercent.toFixed(2)
-                    });
-                }
-
-                // Fetch Silver
-                const silverResponse = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/SI=F?interval=1d&range=1d');
-                const silverData = await silverResponse.json();
-                
-                if (silverData.chart.result && silverData.chart.result[0]) {
-                    const result = silverData.chart.result[0];
-                    const quote = result.meta;
-                    const currentPrice = quote.regularMarketPrice;
-                    const previousClose = quote.chartPreviousClose;
-                    const change = currentPrice - previousClose;
-                    const changePercent = (change / previousClose) * 100;
-
-                    // Convert to INR per kg
-                    const silverInr = (currentPrice * 83.24 * 1000 / 31.1035).toFixed(0);
-                    const changeInr = (change * 83.24 * 1000 / 31.1035).toFixed(0);
-
-                    updateMarketValue('silver', {
-                        value: silverInr,
-                        change: changeInr,
-                        percent: changePercent.toFixed(2)
-                    });
-                }
-            } catch (error) {
-                console.error('Error fetching Gold/Silver data:', error);
-                updateMarketValue('gold', {
-                    value: '62340',
-                    change: '180',
-                    percent: '0.29'
-                });
-                updateMarketValue('silver', {
-                    value: '74850',
-                    change: '-220',
-                    percent: '-0.29'
-                });
-            }
-        }
 
         async function fetchFIIDIIFromBackend() {
             try {
