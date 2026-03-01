@@ -387,6 +387,15 @@ def get_weather():
 
 # ============= UTILITY ENDPOINTS =============
 
+@app.route('/')
+def index():
+    """Root route - confirms server is running"""
+    return jsonify({
+        'status': 'running',
+        'message': 'Dashboard API is live!',
+        'endpoints': '/api/health  |  /api/market/all  |  /api/news/all  |  /api/fii-dii'
+    })
+
 @app.route('/api/health')
 def health_check():
     """Health check endpoint"""
