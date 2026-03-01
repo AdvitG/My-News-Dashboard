@@ -4,6 +4,7 @@ Fetches real-time data from various APIs for the dashboard
 """
 
 import requests
+import yfinance as yf
 from datetime import datetime
 from typing import Dict, List, Optional
 import os
@@ -44,35 +45,35 @@ def set_cache(key: str, data):
 # ============= MARKET DATA APIs =============
 
 def fetch_yahoo_finance(symbol: str) -> Optional[Dict]:
-    """Fetch stock/commodity data from Yahoo Finance"""
+    """Fetch stock/commodity data using yfinance"""
     cached = get_cached(f'yahoo_{symbol}')
     if cached:
         return cached
 
     try:
-        url = f'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d'
-        response = requests.get(url, timeout=10)
-        data = response.json()
+        ticker = yf.Ticker(symbol)
+        info = ticker.fast_info
 
-        if data.get('chart', {}).get('result'):
-            result = data['chart']['result'][0]
-            quote = result['meta']
+        current_price = info.last_price
+        previous_close = info.previous_close
 
-            current_price = quote.get('regularMarketPrice', 0)
-            previous_close = quote.get('chartPreviousClose', current_price)
-            change = current_price - previous_close
-            change_percent = (change / previous_close) * 100 if previous_close else 0
+        if not current_price or not previous_close:
+            print(f"No price data returned for {symbol}")
+            return None
 
-            market_data = {
-                'symbol': symbol,
-                'value': round(current_price, 2),
-                'change': round(change, 2),
-                'percent': round(change_percent, 2),
-                'timestamp': datetime.now().isoformat()
-            }
+        change = current_price - previous_close
+        change_percent = (change / previous_close) * 100 if previous_close else 0
 
-            set_cache(f'yahoo_{symbol}', market_data)
-            return market_data
+        market_data = {
+            'symbol': symbol,
+            'value': round(current_price, 2),
+            'change': round(change, 2),
+            'percent': round(change_percent, 2),
+            'timestamp': datetime.now().isoformat()
+        }
+
+        set_cache(f'yahoo_{symbol}', market_data)
+        return market_data
     except Exception as e:
         print(f"Error fetching {symbol}: {e}")
 
@@ -169,57 +170,86 @@ def get_all_markets():
 
 def fetch_fii_dii_data() -> Dict:
     """
-    Fetch FII/DII data from NSE India
-    Note: NSE requires specific headers and may block automated requests
+    Fetch FII/DII data from NSE India.
+    NSE requires a valid browser session (cookies) before serving the API.
+    Returns None values if unavailable — frontend shows N/A.
     """
     cached = get_cached('fii_dii')
     if cached:
         return cached
 
     try:
+        session = requests.Session()
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.nseindia.com/'
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+        }
+        api_headers = {
+            **headers,
+            'Accept': 'application/json, text/plain, */*',
+            'Referer': 'https://www.nseindia.com/market-data/fii-dii-activity',
+            'X-Requested-With': 'XMLHttpRequest',
         }
 
-        url = 'https://www.nseindia.com/api/fiidiiTradeReact'
+        # Two warmup requests to establish session cookies (NSE requires this)
+        session.get('https://www.nseindia.com', headers=headers, timeout=15)
+        session.get('https://www.nseindia.com/market-data/fii-dii-activity', headers=headers, timeout=10)
 
-        # Create session to handle cookies
-        session = requests.Session()
-        session.get('https://www.nseindia.com', headers=headers, timeout=10)
-        response = session.get(url, headers=headers, timeout=10)
+        response = session.get(
+            'https://www.nseindia.com/api/fiidiiTradeReact',
+            headers=api_headers,
+            timeout=10
+        )
+
+        print(f"NSE FII/DII status: {response.status_code}")
 
         if response.status_code == 200:
             data = response.json()
 
-            fii_dii_data = {
-                'fii_net': 0,
-                'dii_net': 0,
-                'fii_mtd': 0,
-                'dii_mtd': 0,
+            result = {
+                'fii_net': None,
+                'dii_net': None,
+                'fii_mtd': None,
+                'dii_mtd': None,
                 'date': datetime.now().strftime('%Y-%m-%d')
             }
 
             if isinstance(data, list) and len(data) > 0:
                 latest = data[0]
-                fii_dii_data['fii_net'] = latest.get('fii', {}).get('netValue', 0)
-                fii_dii_data['dii_net'] = latest.get('dii', {}).get('netValue', 0)
+                fii_block = latest.get('fii', latest)
+                dii_block = latest.get('dii', latest)
+                result['fii_net'] = fii_block.get('netValue', fii_block.get('NET', None))
+                result['dii_net'] = dii_block.get('netValue', dii_block.get('NET', None))
+                # MTD: sum the available rows
+                if len(data) > 1:
+                    try:
+                        result['fii_mtd'] = round(sum(
+                            float(r.get('fii', r).get('netValue', 0) or 0) for r in data
+                        ), 2)
+                        result['dii_mtd'] = round(sum(
+                            float(r.get('dii', r).get('netValue', 0) or 0) for r in data
+                        ), 2)
+                    except Exception:
+                        pass
 
-            set_cache('fii_dii', fii_dii_data)
-            return fii_dii_data
+            set_cache('fii_dii', result)
+            return result
+
+        print(f"NSE API blocked (status {response.status_code}) — FII/DII unavailable from cloud")
 
     except Exception as e:
         print(f"Error fetching FII/DII data: {e}")
 
     return {
-        'fii_net': 0,
-        'dii_net': 0,
-        'fii_mtd': 0,
-        'dii_mtd': 0,
+        'fii_net': None,
+        'dii_net': None,
+        'fii_mtd': None,
+        'dii_mtd': None,
         'date': datetime.now().strftime('%Y-%m-%d'),
-        'error': 'Data unavailable - API access restricted'
+        'error': 'Data unavailable - NSE API restricted from cloud servers'
     }
 
 @app.route('/api/fii-dii')
@@ -268,6 +298,8 @@ def fetch_news_by_category(query: str, category: str, page_size: int = 5) -> Lis
 
             set_cache(f'news_{category}', articles)
             return articles
+        else:
+            print(f"NewsAPI error for {category}: {data.get('message', 'Unknown error')}")
     except Exception as e:
         print(f"Error fetching news for {category}: {e}")
 

@@ -1586,15 +1586,24 @@
                 const response = await fetch(`${API_BASE_URL}/fii-dii`);
                 const data = await response.json();
 
-                if (!data.error) {
-                    updateValue('fiiNet', data.fii_net || 0, '₹');
-                    updateValue('fiiMtd', data.fii_mtd || 0, '₹');
-                    updateValue('diiNet', data.dii_net || 0, '₹');
-                    updateValue('diiMtd', data.dii_mtd || 0, '₹');
-                } else {
-                    // Use simulated data as fallback
-                    fetchFIIDIIData();
-                }
+                const setValue = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    if (val === null || val === undefined) {
+                        el.textContent = 'N/A';
+                        el.className = 'fii-dii-value';
+                    } else {
+                        const n = parseFloat(val);
+                        el.textContent = `${n >= 0 ? '+' : ''}₹${Math.abs(n).toLocaleString('en-IN')} Cr`;
+                        el.className = `fii-dii-value ${n >= 0 ? 'positive' : 'negative'}`;
+                    }
+                };
+
+                setValue('fiiNet', data.fii_net);
+                setValue('fiiMtd', data.fii_mtd);
+                setValue('diiNet', data.dii_net);
+                setValue('diiMtd', data.dii_mtd);
+
             } catch (error) {
                 console.error('Error fetching FII/DII from backend:', error);
                 fetchFIIDIIData();
@@ -1602,44 +1611,26 @@
         }
 
         async function fetchFIIDIIData() {
-            // Note: FII/DII data requires specialized Indian market data APIs
-            // Using simulated data as real-time FII/DII requires paid APIs like NSE or BSE
-            try {
-                // Simulated FII/DII data - replace with actual API when available
-                const fiiDiiData = {
-                    fiiNet: (Math.random() * 5000 - 2500).toFixed(0),
-                    fiiMtd: (Math.random() * 20000 - 10000).toFixed(0),
-                    diiNet: (Math.random() * 5000 - 1000).toFixed(0),
-                    diiMtd: (Math.random() * 25000 - 5000).toFixed(0)
-                };
-
-                updateValue('fiiNet', fiiDiiData.fiiNet, '₹');
-                updateValue('fiiMtd', fiiDiiData.fiiMtd, '₹');
-                updateValue('diiNet', fiiDiiData.diiNet, '₹');
-                updateValue('diiMtd', fiiDiiData.diiMtd, '₹');
-            } catch (error) {
-                console.error('Error fetching FII/DII data:', error);
-            }
+            // FII/DII data requires NSE API which blocks automated access
+            // Showing N/A until backend can retrieve it
+            const ids = ['fiiNet', 'fiiMtd', 'diiNet', 'diiMtd'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.textContent = 'N/A';
+                    el.className = 'fii-dii-value';
+                }
+            });
         }
 
-        // Fetch news from NewsAPI
+        // Fetch news from NewsAPI via backend
         async function fetchNews() {
             allNews = [];
-
             try {
-                if (USE_BACKEND_API) {
-                    // Fetch from backend API
-                    await fetchNewsFromBackend();
-                } else {
-                    // Fetch directly from NewsAPI
-                    await fetchNewsDirectly();
-                }
+                await fetchNewsFromBackend();
             } catch (error) {
                 console.error('Error fetching news:', error);
-                // Use fallback sample news
-                allNews = getSampleNews();
             }
-
             displayNews();
         }
 
@@ -1647,7 +1638,7 @@
         async function fetchNewsFromBackend() {
             try {
                 const response = await fetch(`${API_BASE_URL}/news/all`);
-                if (!response.ok) throw new Error('Backend not available');
+                if (!response.ok) throw new Error(`Backend returned ${response.status}`);
 
                 const articles = await response.json();
 
@@ -1675,174 +1666,12 @@
 
                     // Shuffle and limit
                     allNews = shuffleArray(allNews).slice(0, 40);
-                } else {
-                    // Fallback to direct fetch if backend returns empty
-                    await fetchNewsDirectly();
                 }
+                // If articles is empty [], allNews stays [] — no fake fallback
             } catch (error) {
-                console.error('Backend news fetch failed, using fallback:', error);
-                await fetchNewsDirectly();
+                console.error('Backend news fetch failed:', error);
+                // allNews stays [] — no fake fallback
             }
-        }
-
-        // Fetch news directly from NewsAPI (fallback)
-        async function fetchNewsDirectly() {
-            const fetchPromises = [];
-
-            // Fetch enabled standard categories
-            if (userPreferences.newsCategories.india) {
-                fetchPromises.push(fetchNewsCategory('India', 'india'));
-            }
-            if (userPreferences.newsCategories.gurgaon) {
-                fetchPromises.push(fetchNewsCategory('Gurgaon OR Gurugram', 'gurgaon'));
-            }
-            if (userPreferences.newsCategories.tech) {
-                fetchPromises.push(fetchNewsCategory('technology OR AI OR artificial intelligence', 'tech'));
-            }
-            if (userPreferences.newsCategories.business) {
-                fetchPromises.push(fetchNewsCategory('business OR finance OR economy', 'business'));
-            }
-            if (userPreferences.newsCategories.science) {
-                fetchPromises.push(fetchNewsCategory('science OR research OR space', 'science'));
-            }
-            if (userPreferences.newsCategories.politics) {
-                fetchPromises.push(fetchNewsCategory('politics OR government OR election', 'politics'));
-            }
-
-            // Fetch custom topics
-            customTopics.forEach((topic, index) => {
-                fetchPromises.push(fetchNewsCategory(topic, `custom_${index}`));
-            });
-
-            const results = await Promise.all(fetchPromises);
-            allNews = results.flat();
-
-            // Shuffle and limit
-            allNews = shuffleArray(allNews).slice(0, 40);
-        }
-
-        async function fetchNewsCategory(query, category) {
-            try {
-                // Using NewsAPI - users need to get their own free API key from newsapi.org
-                const apiKey = NEWS_API_KEY === 'YOUR_NEWS_API_KEY' ? null : NEWS_API_KEY;
-                
-                if (!apiKey) {
-                    // Return sample data if no API key
-                    return getSampleNewsByCategory(category);
-                }
-
-                const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error('API request failed');
-                }
-                
-                const data = await response.json();
-                
-                return data.articles.map(article => ({
-                    id: Math.random().toString(36).substr(2, 9),
-                    category: category,
-                    title: article.title,
-                    summary: article.description || article.content?.substring(0, 150) + '...' || 'No summary available',
-                    source: article.source.name,
-                    time: getRelativeTime(article.publishedAt),
-                    url: article.url
-                }));
-            } catch (error) {
-                console.error(`Error fetching ${category} news:`, error);
-                return getSampleNewsByCategory(category);
-            }
-        }
-
-        function getSampleNewsByCategory(category) {
-            const samplesByCategory = {
-                india: [
-                    {
-                        category: 'india',
-                        title: 'India\'s GDP Growth Exceeds Expectations for Q4',
-                        summary: 'The Indian economy demonstrates robust growth, surpassing analyst predictions with strong performance in manufacturing and services sectors.',
-                        source: 'Economic Times',
-                        time: '2 hours ago'
-                    },
-                    {
-                        category: 'india',
-                        title: 'New Digital Infrastructure Initiative Announced',
-                        summary: 'Government unveils comprehensive plan to expand digital connectivity across rural India, aiming to bridge the digital divide.',
-                        source: 'The Hindu',
-                        time: '4 hours ago'
-                    }
-                ],
-                gurgaon: [
-                    {
-                        category: 'gurgaon',
-                        title: 'Gurgaon Metro Extension Project Progresses Ahead of Schedule',
-                        summary: 'New metro line connecting Cyber City to Dwarka Expressway shows significant progress, expected to ease traffic congestion.',
-                        source: 'Times of India',
-                        time: '1 hour ago'
-                    },
-                    {
-                        category: 'gurgaon',
-                        title: 'Tech Hub Expansion: Major IT Companies to Establish New Offices',
-                        summary: 'Leading technology firms announce plans for expanded operations in Gurgaon, creating thousands of new job opportunities.',
-                        source: 'Hindustan Times',
-                        time: '3 hours ago'
-                    }
-                ],
-                tech: [
-                    {
-                        category: 'tech',
-                        title: 'New AI Model Achieves Breakthrough in Natural Language Understanding',
-                        summary: 'Researchers unveil revolutionary approach to language processing that significantly improves contextual comprehension.',
-                        source: 'Tech Review',
-                        time: '2 hours ago'
-                    }
-                ],
-                business: [
-                    {
-                        category: 'business',
-                        title: 'Global Markets Rally on Positive Economic Indicators',
-                        summary: 'Stock markets see significant gains as manufacturing data exceeds expectations and inflation shows cooling signs.',
-                        source: 'Financial Times',
-                        time: '1 hour ago'
-                    }
-                ],
-                science: [
-                    {
-                        category: 'science',
-                        title: 'Quantum Computing Reaches New Milestone',
-                        summary: 'Scientists demonstrate novel error correction technique paving way for practical quantum computers.',
-                        source: 'Science Daily',
-                        time: '3 hours ago'
-                    }
-                ],
-                politics: [
-                    {
-                        category: 'politics',
-                        title: 'International Climate Summit Announces New Emissions Targets',
-                        summary: 'World leaders commit to ambitious carbon reduction goals following intense negotiations.',
-                        source: 'Global News',
-                        time: '4 hours ago'
-                    }
-                ]
-            };
-
-            return (samplesByCategory[category] || []).map(news => ({
-                ...news,
-                id: Math.random().toString(36).substr(2, 9),
-                url: '#'
-            }));
-        }
-
-        function getSampleNews() {
-            return [
-                ...getSampleNewsByCategory('india'),
-                ...getSampleNewsByCategory('gurgaon'),
-                ...getSampleNewsByCategory('tech'),
-                ...getSampleNewsByCategory('business'),
-                ...getSampleNewsByCategory('science'),
-                ...getSampleNewsByCategory('politics')
-            ];
         }
 
         function getRelativeTime(dateString) {
@@ -1911,7 +1740,7 @@
                 : allNews.filter(n => n.category === currentCategory);
             
             if (newsToShow.length === 0) {
-                container.innerHTML = '<div class="loading">📰 Loading news for this category...</div>';
+                container.innerHTML = '<div class="loading">📰 No articles found. Make sure NEWS_API_KEY is set in Railway and the backend has redeployed.</div>';
                 return;
             }
 
