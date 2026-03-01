@@ -19,8 +19,6 @@ CORS(app)
 
 # API Configuration
 NEWS_API_KEY = os.getenv('NEWS_API_KEY', '')  # Get from newsapi.org
-ALPHA_VANTAGE_KEY = os.getenv('ALPHA_VANTAGE_KEY', 'demo')
-NSE_BASE_URL = 'https://www.nseindia.com/api'
 
 # Cache to avoid hitting API limits
 cache = {}
@@ -31,7 +29,7 @@ def is_cache_valid(key: str) -> bool:
     if key not in cache:
         return False
     cached_time, _ = cache[key]
-    return (datetime.now() - cached_time).seconds < CACHE_DURATION
+    return (datetime.now() - cached_time).total_seconds() < CACHE_DURATION
 
 def get_cached(key: str):
     """Get cached data if valid"""
@@ -80,6 +78,44 @@ def fetch_yahoo_finance(symbol: str) -> Optional[Dict]:
 
     return None
 
+def compute_gold_inr() -> Optional[Dict]:
+    """Compute Gold price in INR per 10g"""
+    data = fetch_yahoo_finance('GC=F')
+    if data:
+        usd_inr = fetch_yahoo_finance('USDINR=X')
+        if usd_inr:
+            exchange_rate = usd_inr['value']
+            # 1 troy ounce = 31.1035 grams
+            inr_per_10g = (data['value'] * exchange_rate * 10) / 31.1035
+            change_inr = (data['change'] * exchange_rate * 10) / 31.1035
+            return {
+                'symbol': 'GOLD',
+                'value': round(inr_per_10g, 0),
+                'change': round(change_inr, 0),
+                'percent': data['percent'],
+                'timestamp': datetime.now().isoformat()
+            }
+    return None
+
+def compute_silver_inr() -> Optional[Dict]:
+    """Compute Silver price in INR per kg"""
+    data = fetch_yahoo_finance('SI=F')
+    if data:
+        usd_inr = fetch_yahoo_finance('USDINR=X')
+        if usd_inr:
+            exchange_rate = usd_inr['value']
+            # 1 troy ounce = 31.1035 grams, 1 kg = 1000g
+            inr_per_kg = (data['value'] * exchange_rate * 1000) / 31.1035
+            change_inr = (data['change'] * exchange_rate * 1000) / 31.1035
+            return {
+                'symbol': 'SILVER',
+                'value': round(inr_per_kg, 0),
+                'change': round(change_inr, 0),
+                'percent': data['percent'],
+                'timestamp': datetime.now().isoformat()
+            }
+    return None
+
 @app.route('/api/market/sensex')
 def get_sensex():
     """Get BSE Sensex data"""
@@ -107,46 +143,14 @@ def get_forex():
 @app.route('/api/market/gold')
 def get_gold():
     """Get Gold price (converted to INR per 10g)"""
-    data = fetch_yahoo_finance('GC=F')
-    if data:
-        # Convert USD per troy ounce to INR per 10g
-        usd_inr = fetch_yahoo_finance('USDINR=X')
-        if usd_inr:
-            exchange_rate = usd_inr['value']
-            # 1 troy ounce = 31.1035 grams
-            inr_per_10g = (data['value'] * exchange_rate * 10) / 31.1035
-            change_inr = (data['change'] * exchange_rate * 10) / 31.1035
-
-            return jsonify({
-                'symbol': 'GOLD',
-                'value': round(inr_per_10g, 0),
-                'change': round(change_inr, 0),
-                'percent': data['percent'],
-                'timestamp': datetime.now().isoformat()
-            })
-    return jsonify({'error': 'Unable to fetch data'})
+    data = compute_gold_inr()
+    return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/silver')
 def get_silver():
     """Get Silver price (converted to INR per kg)"""
-    data = fetch_yahoo_finance('SI=F')
-    if data:
-        # Convert USD per troy ounce to INR per kg
-        usd_inr = fetch_yahoo_finance('USDINR=X')
-        if usd_inr:
-            exchange_rate = usd_inr['value']
-            # 1 troy ounce = 31.1035 grams, 1 kg = 1000g
-            inr_per_kg = (data['value'] * exchange_rate * 1000) / 31.1035
-            change_inr = (data['change'] * exchange_rate * 1000) / 31.1035
-
-            return jsonify({
-                'symbol': 'SILVER',
-                'value': round(inr_per_kg, 0),
-                'change': round(change_inr, 0),
-                'percent': data['percent'],
-                'timestamp': datetime.now().isoformat()
-            })
-    return jsonify({'error': 'Unable to fetch data'})
+    data = compute_silver_inr()
+    return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/all')
 def get_all_markets():
@@ -156,8 +160,8 @@ def get_all_markets():
         'nifty': fetch_yahoo_finance('^NSEI'),
         'dow': fetch_yahoo_finance('^DJI'),
         'forex': fetch_yahoo_finance('USDINR=X'),
-        'gold': get_gold().get_json(),
-        'silver': get_silver().get_json(),
+        'gold': compute_gold_inr(),
+        'silver': compute_silver_inr(),
         'timestamp': datetime.now().isoformat()
     })
 
@@ -167,17 +171,12 @@ def fetch_fii_dii_data() -> Dict:
     """
     Fetch FII/DII data from NSE India
     Note: NSE requires specific headers and may block automated requests
-    Alternative: Use moneycontrol.com or investing.com scraping
     """
     cached = get_cached('fii_dii')
     if cached:
         return cached
 
     try:
-        # Using a free alternative API - you may need to implement web scraping
-        # or use a paid service for reliable FII/DII data
-
-        # For demonstration, using NSE India API (requires proper headers)
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/json',
@@ -185,21 +184,16 @@ def fetch_fii_dii_data() -> Dict:
             'Referer': 'https://www.nseindia.com/'
         }
 
-        # FII/DII data endpoint
         url = 'https://www.nseindia.com/api/fiidiiTradeReact'
 
         # Create session to handle cookies
         session = requests.Session()
-        # First request to set cookies
         session.get('https://www.nseindia.com', headers=headers, timeout=10)
-
-        # Now fetch FII/DII data
         response = session.get(url, headers=headers, timeout=10)
 
         if response.status_code == 200:
             data = response.json()
 
-            # Parse the response (structure may vary)
             fii_dii_data = {
                 'fii_net': 0,
                 'dii_net': 0,
@@ -208,7 +202,6 @@ def fetch_fii_dii_data() -> Dict:
                 'date': datetime.now().strftime('%Y-%m-%d')
             }
 
-            # Extract data from response
             if isinstance(data, list) and len(data) > 0:
                 latest = data[0]
                 fii_dii_data['fii_net'] = latest.get('fii', {}).get('netValue', 0)
@@ -220,7 +213,6 @@ def fetch_fii_dii_data() -> Dict:
     except Exception as e:
         print(f"Error fetching FII/DII data: {e}")
 
-    # Return placeholder data if API fails
     return {
         'fii_net': 0,
         'dii_net': 0,
@@ -229,37 +221,6 @@ def fetch_fii_dii_data() -> Dict:
         'date': datetime.now().strftime('%Y-%m-%d'),
         'error': 'Data unavailable - API access restricted'
     }
-
-def fetch_moneycontrol_fii_dii() -> Dict:
-    """
-    Alternative: Fetch FII/DII from Moneycontrol
-    Uses web scraping as they don't have a public API
-    """
-    try:
-        from bs4 import BeautifulSoup
-
-        url = 'https://www.moneycontrol.com/stocks/marketstats/fii_dii_activity/index.php'
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        # Parse the table data (implementation depends on site structure)
-        # This is a placeholder - you'll need to inspect the HTML structure
-
-        return {
-            'fii_net': 0,
-            'dii_net': 0,
-            'fii_mtd': 0,
-            'dii_mtd': 0,
-            'note': 'Requires BeautifulSoup4 implementation'
-        }
-    except ImportError:
-        return {'error': 'BeautifulSoup4 not installed'}
-    except Exception as e:
-        return {'error': str(e)}
 
 @app.route('/api/fii-dii')
 def get_fii_dii():
@@ -319,16 +280,17 @@ def get_relative_time(date_string: str) -> str:
         now = datetime.now(date.tzinfo)
         diff = now - date
 
-        minutes = diff.seconds // 60
-        hours = diff.seconds // 3600
+        total_seconds = int(diff.total_seconds())
         days = diff.days
+        hours = total_seconds // 3600
+        minutes = total_seconds // 60
 
-        if minutes < 60:
-            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-        elif hours < 24:
+        if days > 0:
+            return f"{days} day{'s' if days != 1 else ''} ago"
+        elif hours > 0:
             return f"{hours} hour{'s' if hours != 1 else ''} ago"
         else:
-            return f"{days} day{'s' if days != 1 else ''} ago"
+            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
     except:
         return "Recently"
 
@@ -377,14 +339,6 @@ def get_custom_news(topic: str):
     articles = fetch_news_by_category(topic, f'custom_{topic}', page_size=5)
     return jsonify(articles)
 
-# ============= WEATHER DATA =============
-
-@app.route('/api/weather')
-def get_weather():
-    """Get weather data (already handled by frontend, but available if needed)"""
-    # This is optional since frontend uses Open-Meteo directly
-    return jsonify({'message': 'Use Open-Meteo API directly from frontend'})
-
 # ============= UTILITY ENDPOINTS =============
 
 @app.route('/')
@@ -414,14 +368,12 @@ def get_config():
     """Get API configuration status"""
     return jsonify({
         'news_api_configured': bool(NEWS_API_KEY),
-        'alpha_vantage_configured': bool(ALPHA_VANTAGE_KEY and ALPHA_VANTAGE_KEY != 'demo'),
         'message': 'Set NEWS_API_KEY environment variable for news data'
     })
 
 # ============= MAIN =============
 
 if __name__ == '__main__':
-    # Get port from environment variable (Railway/Heroku) or default to 5000
     port = int(os.getenv('PORT', 5000))
 
     print("""
@@ -443,15 +395,12 @@ if __name__ == '__main__':
     - GET /api/news/all         - All news
     - GET /api/news/<category>  - News by category
     - GET /api/health           - Health check
-    - GET /api/config           - Configuration status
 
     Environment Variables:
     - NEWS_API_KEY              - Get from newsapi.org (FREE)
-    - ALPHA_VANTAGE_KEY         - Get from alphavantage.co (optional)
     - PORT                      - Server port (default: 5000)
 
     """.format(port))
 
-    # Use debug=False in production (Railway/Heroku)
     is_production = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('DYNO')
     app.run(debug=not is_production, host='0.0.0.0', port=port)
