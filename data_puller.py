@@ -153,10 +153,29 @@ def fetch_stooq(symbol: str) -> Optional[Dict]:
         print(f"Error fetching {symbol} from Stooq: {e}")
         return None
 
+# Yahoo Finance fallback symbols for when Stooq rate-limits Railway's IP
+_STOOQ_YF_MAP = {
+    '^dji':   '^DJI',
+    'usdinr': 'USDINR=X',
+    'xauusd': 'GC=F',
+    'xagusd': 'SI=F',
+}
+
+def fetch_market(stooq_symbol: str) -> Optional[Dict]:
+    """Try Stooq first; fall back to Yahoo Finance if Stooq is unavailable."""
+    result = fetch_stooq(stooq_symbol)
+    if result:
+        return result
+    yf_symbol = _STOOQ_YF_MAP.get(stooq_symbol)
+    if yf_symbol:
+        print(f"Stooq unavailable for {stooq_symbol}, trying Yahoo Finance ({yf_symbol})")
+        return fetch_yahoo_finance(yf_symbol)
+    return None
+
 def compute_gold_inr() -> Optional[Dict]:
     """Gold price in INR per 10g"""
-    gold_usd = fetch_stooq('xauusd')   # Gold spot price in USD/troy oz
-    usd_inr = fetch_stooq('usdinr')    # USD/INR exchange rate
+    gold_usd = fetch_market('xauusd')   # Gold spot price in USD/troy oz
+    usd_inr = fetch_market('usdinr')    # USD/INR exchange rate
     if gold_usd and usd_inr:
         rate = usd_inr['value']
         # 1 troy oz = 31.1035g → price per 10g
@@ -173,8 +192,8 @@ def compute_gold_inr() -> Optional[Dict]:
 
 def compute_silver_inr() -> Optional[Dict]:
     """Silver price in INR per kg"""
-    silver_usd = fetch_stooq('xagusd')  # Silver spot price in USD/troy oz
-    usd_inr = fetch_stooq('usdinr')
+    silver_usd = fetch_market('xagusd')  # Silver spot price in USD/troy oz
+    usd_inr = fetch_market('usdinr')
     if silver_usd and usd_inr:
         rate = usd_inr['value']
         # 1 troy oz = 31.1035g, 1 kg = 1000g
@@ -201,12 +220,12 @@ def get_nifty():
 
 @app.route('/api/market/dow')
 def get_dow():
-    data = fetch_stooq('^dji')
+    data = fetch_market('^dji')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/forex')
 def get_forex():
-    data = fetch_stooq('usdinr')
+    data = fetch_market('usdinr')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/gold')
@@ -224,8 +243,8 @@ def get_all_markets():
     return jsonify({
         'sensex': fetch_yahoo_finance('^BSESN'),
         'nifty': fetch_yahoo_finance('^NSEI'),
-        'dow': fetch_stooq('^dji'),
-        'forex': fetch_stooq('usdinr'),
+        'dow': fetch_market('^dji'),
+        'forex': fetch_market('usdinr'),
         'gold': compute_gold_inr(),
         'silver': compute_silver_inr(),
         'timestamp': datetime.now().isoformat()
