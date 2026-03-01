@@ -668,6 +668,158 @@
             font-size: 3rem;
             line-height: 1;
         }
+
+        /* Market dashboard header row: title + clocks */
+        .market-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+        }
+
+        /* ========== RESPONSIVE BREAKPOINTS ==========
+           Mobile:      ≤ 600px  (phones portrait)
+           Tablet:      601px – 900px
+           Laptop+:     > 900px  (default styles above)
+        */
+
+        /* --- Tablet --- */
+        @media (max-width: 900px) {
+            .financial-grid {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            }
+            .news-grid {
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            }
+        }
+
+        /* --- Mobile --- */
+        @media (max-width: 600px) {
+
+            /* Header */
+            .header {
+                padding: 0.6rem 0.9rem;
+            }
+            .header-content {
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+            h1 {
+                font-size: 1rem;
+                flex: 1 1 100%;  /* takes full row, pushes buttons below */
+            }
+            .header-content > div {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 0.3rem;
+            }
+            /* Icon-only buttons: hide the text, keep the emoji */
+            .btn-text {
+                display: none;
+            }
+            .settings-btn,
+            .refresh-btn {
+                padding: 0.4rem 0.6rem;
+                margin-right: 0;
+                font-size: 1rem;        /* make emoji readable */
+            }
+            .last-updated {
+                font-size: 0.65rem;
+            }
+
+            /* Container */
+            .container {
+                padding: 0.75rem;
+            }
+
+            /* Financial dashboard */
+            .financial-dashboard {
+                padding: 0.75rem;
+            }
+
+            /* Market header: stack title and clocks */
+            .market-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.3rem;
+            }
+            .market-header > div {
+                gap: 0.8rem !important;
+            }
+
+            /* Market cards: 2 columns */
+            .financial-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.5rem;
+            }
+            .financial-value {
+                font-size: 0.95rem;
+            }
+            .financial-label {
+                font-size: 0.6rem;
+            }
+
+            /* FII/DII: 2×2 grid */
+            .fii-dii-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .fii-dii-value {
+                font-size: 0.85rem;
+            }
+
+            /* Weather: stack vertically */
+            .weather-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+            .weather-temp {
+                font-size: 2rem;
+            }
+            .weather-details {
+                width: 100%;
+                justify-content: space-between;
+                gap: 0;
+            }
+            .weather-icon {
+                font-size: 2rem;
+            }
+
+            /* Category tabs: compact */
+            .category-tabs {
+                gap: 0.3rem;
+            }
+            .tab {
+                font-size: 0.72rem;
+                padding: 0.3rem 0.6rem;
+            }
+
+            /* News: single column */
+            .news-grid {
+                grid-template-columns: 1fr;
+                gap: 0.9rem;
+            }
+
+            /* Modal */
+            .modal-content {
+                padding: 1rem;
+                max-height: 92vh;
+                border-radius: 10px;
+            }
+            .modal-title {
+                font-size: 1.1rem;
+            }
+            .checkbox-group {
+                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            }
+            .custom-topic-input {
+                flex-direction: column;
+            }
+            .add-topic-btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -675,8 +827,8 @@
         <div class="header-content">
             <h1 id="greetingTitle">🌟 Your Personal News Board</h1>
             <div>
-                <button class="settings-btn" onclick="openSettings()">⚙️ Customize</button>
-                <button class="refresh-btn" onclick="refreshAll()">↻ Refresh All</button>
+                <button class="settings-btn" onclick="openSettings()">⚙️<span class="btn-text"> Customize</span></button>
+                <button class="refresh-btn" onclick="refreshAll()">↻<span class="btn-text"> Refresh All</span></button>
                 <span class="last-updated" id="lastUpdated"></span>
             </div>
         </div>
@@ -829,7 +981,7 @@
 
         <!-- Financial Dashboard -->
         <div class="financial-dashboard">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <div class="market-header">
                 <div class="dashboard-title" id="dashboardTitle">📊 Market Dashboard</div>
                 <div style="display: flex; gap: 1rem; font-size: 0.75rem; font-weight: 600;">
                     <div style="text-align: center;">
