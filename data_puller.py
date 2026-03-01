@@ -4,7 +4,8 @@ Fetches real-time data from various APIs for the dashboard
 """
 
 import requests
-import yfinance as yf
+import csv
+import io
 from datetime import datetime
 from typing import Dict, List, Optional
 import os
@@ -12,168 +13,175 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load environment variables from .env file (for local development)
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# API Configuration
-NEWS_API_KEY = os.getenv('NEWS_API_KEY', '')  # Get from newsapi.org
+NEWS_API_KEY = os.getenv('NEWS_API_KEY', '')
 
-# Cache to avoid hitting API limits
 cache = {}
-CACHE_DURATION = 120  # seconds
+CACHE_DURATION = 300  # 5 minutes — gives fresher data while staying within NewsAPI limits
 
 def is_cache_valid(key: str) -> bool:
-    """Check if cached data is still valid"""
     if key not in cache:
         return False
     cached_time, _ = cache[key]
     return (datetime.now() - cached_time).total_seconds() < CACHE_DURATION
 
 def get_cached(key: str):
-    """Get cached data if valid"""
     if is_cache_valid(key):
         return cache[key][1]
     return None
 
 def set_cache(key: str, data):
-    """Set cache with current timestamp"""
     cache[key] = (datetime.now(), data)
 
-# ============= MARKET DATA APIs =============
+# ============= MARKET DATA (Stooq) =============
+# Stooq is a free financial data provider that works from cloud servers.
+# No API key required. Returns CSV data for stocks, indices, forex, commodities.
+# Symbols: ^bsesn (Sensex), ^nsei (Nifty), ^dji (Dow), usdinr (USD/INR),
+#          xauusd (Gold/USD), xagusd (Silver/USD)
 
-def fetch_yahoo_finance(symbol: str) -> Optional[Dict]:
-    """Fetch stock/commodity data using yfinance"""
-    cached = get_cached(f'yahoo_{symbol}')
+def fetch_stooq(symbol: str) -> Optional[Dict]:
+    """Fetch market data from Stooq (free, no API key, cloud-friendly)"""
+    cached = get_cached(f'stooq_{symbol}')
     if cached:
         return cached
 
     try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.fast_info
+        url = f'https://stooq.com/q/d/l/?s={symbol}&i=d'
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
 
-        current_price = info.last_price
-        previous_close = info.previous_close
-
-        if not current_price or not previous_close:
-            print(f"No price data returned for {symbol}")
+        if response.status_code != 200:
+            print(f"Stooq {symbol}: HTTP {response.status_code}")
             return None
 
-        change = current_price - previous_close
-        change_percent = (change / previous_close) * 100 if previous_close else 0
+        text = response.text.strip()
+        if not text or 'No data' in text:
+            print(f"Stooq {symbol}: empty or no data response")
+            return None
 
-        market_data = {
+        rows = list(csv.DictReader(io.StringIO(text)))
+
+        if len(rows) < 1:
+            print(f"Stooq {symbol}: no rows in CSV")
+            return None
+
+        # Stooq returns newest row first
+        current_price = float(rows[0].get('Close', 0) or 0)
+        if not current_price:
+            print(f"Stooq {symbol}: zero/null close price")
+            return None
+
+        prev_close = float(rows[1].get('Close', current_price) or current_price) if len(rows) >= 2 else current_price
+        change = current_price - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0
+
+        data = {
             'symbol': symbol,
             'value': round(current_price, 2),
             'change': round(change, 2),
-            'percent': round(change_percent, 2),
+            'percent': round(change_pct, 2),
             'timestamp': datetime.now().isoformat()
         }
 
-        set_cache(f'yahoo_{symbol}', market_data)
-        return market_data
-    except Exception as e:
-        print(f"Error fetching {symbol}: {e}")
+        set_cache(f'stooq_{symbol}', data)
+        print(f"Stooq {symbol}: {current_price} (change: {change:+.2f})")
+        return data
 
-    return None
+    except Exception as e:
+        print(f"Error fetching {symbol} from Stooq: {e}")
+        return None
 
 def compute_gold_inr() -> Optional[Dict]:
-    """Compute Gold price in INR per 10g"""
-    data = fetch_yahoo_finance('GC=F')
-    if data:
-        usd_inr = fetch_yahoo_finance('USDINR=X')
-        if usd_inr:
-            exchange_rate = usd_inr['value']
-            # 1 troy ounce = 31.1035 grams
-            inr_per_10g = (data['value'] * exchange_rate * 10) / 31.1035
-            change_inr = (data['change'] * exchange_rate * 10) / 31.1035
-            return {
-                'symbol': 'GOLD',
-                'value': round(inr_per_10g, 0),
-                'change': round(change_inr, 0),
-                'percent': data['percent'],
-                'timestamp': datetime.now().isoformat()
-            }
+    """Gold price in INR per 10g"""
+    gold_usd = fetch_stooq('xauusd')   # Gold spot price in USD/troy oz
+    usd_inr = fetch_stooq('usdinr')    # USD/INR exchange rate
+    if gold_usd and usd_inr:
+        rate = usd_inr['value']
+        # 1 troy oz = 31.1035g → price per 10g
+        inr_per_10g = (gold_usd['value'] * rate * 10) / 31.1035
+        change_inr = (gold_usd['change'] * rate * 10) / 31.1035
+        return {
+            'symbol': 'GOLD',
+            'value': round(inr_per_10g, 0),
+            'change': round(change_inr, 0),
+            'percent': round(gold_usd['percent'], 2),
+            'timestamp': datetime.now().isoformat()
+        }
     return None
 
 def compute_silver_inr() -> Optional[Dict]:
-    """Compute Silver price in INR per kg"""
-    data = fetch_yahoo_finance('SI=F')
-    if data:
-        usd_inr = fetch_yahoo_finance('USDINR=X')
-        if usd_inr:
-            exchange_rate = usd_inr['value']
-            # 1 troy ounce = 31.1035 grams, 1 kg = 1000g
-            inr_per_kg = (data['value'] * exchange_rate * 1000) / 31.1035
-            change_inr = (data['change'] * exchange_rate * 1000) / 31.1035
-            return {
-                'symbol': 'SILVER',
-                'value': round(inr_per_kg, 0),
-                'change': round(change_inr, 0),
-                'percent': data['percent'],
-                'timestamp': datetime.now().isoformat()
-            }
+    """Silver price in INR per kg"""
+    silver_usd = fetch_stooq('xagusd')  # Silver spot price in USD/troy oz
+    usd_inr = fetch_stooq('usdinr')
+    if silver_usd and usd_inr:
+        rate = usd_inr['value']
+        # 1 troy oz = 31.1035g, 1 kg = 1000g
+        inr_per_kg = (silver_usd['value'] * rate * 1000) / 31.1035
+        change_inr = (silver_usd['change'] * rate * 1000) / 31.1035
+        return {
+            'symbol': 'SILVER',
+            'value': round(inr_per_kg, 0),
+            'change': round(change_inr, 0),
+            'percent': round(silver_usd['percent'], 2),
+            'timestamp': datetime.now().isoformat()
+        }
     return None
 
 @app.route('/api/market/sensex')
 def get_sensex():
-    """Get BSE Sensex data"""
-    data = fetch_yahoo_finance('^BSESN')
+    data = fetch_stooq('^bsesn')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/nifty')
 def get_nifty():
-    """Get Nifty 50 data"""
-    data = fetch_yahoo_finance('^NSEI')
+    data = fetch_stooq('^nsei')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/dow')
 def get_dow():
-    """Get Dow Jones data"""
-    data = fetch_yahoo_finance('^DJI')
+    data = fetch_stooq('^dji')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/forex')
 def get_forex():
-    """Get USD/INR exchange rate"""
-    data = fetch_yahoo_finance('USDINR=X')
+    data = fetch_stooq('usdinr')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/gold')
 def get_gold():
-    """Get Gold price (converted to INR per 10g)"""
     data = compute_gold_inr()
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/silver')
 def get_silver():
-    """Get Silver price (converted to INR per kg)"""
     data = compute_silver_inr()
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/all')
 def get_all_markets():
-    """Get all market data in one call"""
     return jsonify({
-        'sensex': fetch_yahoo_finance('^BSESN'),
-        'nifty': fetch_yahoo_finance('^NSEI'),
-        'dow': fetch_yahoo_finance('^DJI'),
-        'forex': fetch_yahoo_finance('USDINR=X'),
+        'sensex': fetch_stooq('^bsesn'),
+        'nifty': fetch_stooq('^nsei'),
+        'dow': fetch_stooq('^dji'),
+        'forex': fetch_stooq('usdinr'),
         'gold': compute_gold_inr(),
         'silver': compute_silver_inr(),
         'timestamp': datetime.now().isoformat()
     })
 
 # ============= FII/DII DATA =============
+# NSE India returns HTTP 200 but with empty body from cloud server IPs
+# (confirmed in Railway logs). This is their IP-level blocking mechanism.
+# No workaround exists without a paid data provider.
+# Returns None values so the frontend displays N/A.
 
 def fetch_fii_dii_data() -> Dict:
-    """
-    Fetch FII/DII data from NSE India.
-    NSE requires a valid browser session (cookies) before serving the API.
-    Returns None values if unavailable — frontend shows N/A.
-    """
     cached = get_cached('fii_dii')
     if cached:
         return cached
@@ -184,7 +192,6 @@ def fetch_fii_dii_data() -> Dict:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
         }
         api_headers = {
@@ -194,7 +201,6 @@ def fetch_fii_dii_data() -> Dict:
             'X-Requested-With': 'XMLHttpRequest',
         }
 
-        # Two warmup requests to establish session cookies (NSE requires this)
         session.get('https://www.nseindia.com', headers=headers, timeout=15)
         session.get('https://www.nseindia.com/market-data/fii-dii-activity', headers=headers, timeout=10)
 
@@ -204,33 +210,40 @@ def fetch_fii_dii_data() -> Dict:
             timeout=10
         )
 
-        print(f"NSE FII/DII status: {response.status_code}")
+        print(f"NSE FII/DII status: {response.status_code}, body_len: {len(response.text)}")
 
-        if response.status_code == 200:
+        # NSE returns 200 with empty body when blocking cloud IPs
+        if response.status_code == 200 and response.text.strip():
             data = response.json()
+            print(f"NSE FII/DII data keys: {list(data[0].keys()) if isinstance(data, list) and data else type(data)}")
 
             result = {
-                'fii_net': None,
-                'dii_net': None,
-                'fii_mtd': None,
-                'dii_mtd': None,
+                'fii_net': None, 'dii_net': None,
+                'fii_mtd': None, 'dii_mtd': None,
                 'date': datetime.now().strftime('%Y-%m-%d')
             }
 
             if isinstance(data, list) and len(data) > 0:
                 latest = data[0]
-                fii_block = latest.get('fii', latest)
-                dii_block = latest.get('dii', latest)
-                result['fii_net'] = fii_block.get('netValue', fii_block.get('NET', None))
-                result['dii_net'] = dii_block.get('netValue', dii_block.get('NET', None))
-                # MTD: sum the available rows
+                # Try common NSE response structures
+                fii_block = latest.get('fii', {})
+                dii_block = latest.get('dii', {})
+
+                if isinstance(fii_block, dict):
+                    result['fii_net'] = fii_block.get('netValue') or fii_block.get('NET')
+                    result['dii_net'] = (dii_block.get('netValue') or dii_block.get('NET')) if isinstance(dii_block, dict) else None
+                else:
+                    # Flat structure fallback
+                    result['fii_net'] = latest.get('fiiNet') or latest.get('fii_net')
+                    result['dii_net'] = latest.get('diiNet') or latest.get('dii_net')
+
                 if len(data) > 1:
                     try:
                         result['fii_mtd'] = round(sum(
-                            float(r.get('fii', r).get('netValue', 0) or 0) for r in data
+                            float(r.get('fii', {}).get('netValue', 0) or 0) for r in data
                         ), 2)
                         result['dii_mtd'] = round(sum(
-                            float(r.get('dii', r).get('netValue', 0) or 0) for r in data
+                            float(r.get('dii', {}).get('netValue', 0) or 0) for r in data
                         ), 2)
                     except Exception:
                         pass
@@ -238,30 +251,25 @@ def fetch_fii_dii_data() -> Dict:
             set_cache('fii_dii', result)
             return result
 
-        print(f"NSE API blocked (status {response.status_code}) — FII/DII unavailable from cloud")
+        print(f"NSE returned empty body — cloud IP blocked")
 
     except Exception as e:
-        print(f"Error fetching FII/DII data: {e}")
+        print(f"Error fetching FII/DII: {e}")
 
     return {
-        'fii_net': None,
-        'dii_net': None,
-        'fii_mtd': None,
-        'dii_mtd': None,
+        'fii_net': None, 'dii_net': None,
+        'fii_mtd': None, 'dii_mtd': None,
         'date': datetime.now().strftime('%Y-%m-%d'),
-        'error': 'Data unavailable - NSE API restricted from cloud servers'
+        'error': 'NSE blocks cloud server IPs — data unavailable'
     }
 
 @app.route('/api/fii-dii')
 def get_fii_dii():
-    """Get FII/DII investment data"""
-    data = fetch_fii_dii_data()
-    return jsonify(data)
+    return jsonify(fetch_fii_dii_data())
 
 # ============= NEWS DATA =============
 
-def fetch_news_by_category(query: str, category: str, page_size: int = 5) -> List[Dict]:
-    """Fetch news from NewsAPI"""
+def fetch_news_by_category(query: str, category: str, page_size: int = 4) -> List[Dict]:
     if not NEWS_API_KEY:
         return []
 
@@ -285,33 +293,35 @@ def fetch_news_by_category(query: str, category: str, page_size: int = 5) -> Lis
         if data.get('status') == 'ok':
             articles = []
             for article in data.get('articles', []):
+                title = article.get('title', '') or ''
+                url_val = article.get('url', '') or ''
+                # Skip removed/deleted articles
+                if '[Removed]' in title or not url_val:
+                    continue
                 articles.append({
                     'category': category,
-                    'title': article.get('title', ''),
-                    'summary': article.get('description') or article.get('content', '')[:150] + '...',
+                    'title': title,
+                    'summary': article.get('description') or '',
                     'source': article.get('source', {}).get('name', 'Unknown'),
                     'time': get_relative_time(article.get('publishedAt')),
-                    'url': article.get('url', '#'),
-                    'imageUrl': article.get('urlToImage'),
+                    'url': url_val,
                     'publishedAt': article.get('publishedAt')
                 })
-
             set_cache(f'news_{category}', articles)
             return articles
         else:
-            print(f"NewsAPI error for {category}: {data.get('message', 'Unknown error')}")
+            print(f"NewsAPI error for {category}: {data.get('message', data.get('status'))}")
+
     except Exception as e:
         print(f"Error fetching news for {category}: {e}")
 
     return []
 
 def get_relative_time(date_string: str) -> str:
-    """Convert ISO date to relative time"""
     try:
         date = datetime.fromisoformat(date_string.replace('Z', '+00:00'))
         now = datetime.now(date.tzinfo)
         diff = now - date
-
         total_seconds = int(diff.total_seconds())
         days = diff.days
         hours = total_seconds // 3600
@@ -328,7 +338,6 @@ def get_relative_time(date_string: str) -> str:
 
 @app.route('/api/news/<category>')
 def get_news_category(category: str):
-    """Get news for a specific category"""
     queries = {
         'india': 'India',
         'gurgaon': 'Gurgaon OR Gurugram',
@@ -337,69 +346,76 @@ def get_news_category(category: str):
         'science': 'science OR research OR space',
         'politics': 'politics OR government OR election'
     }
-
-    query = queries.get(category, category)
-    articles = fetch_news_by_category(query, category)
+    articles = fetch_news_by_category(queries.get(category, category), category)
     return jsonify(articles)
 
 @app.route('/api/news/all')
 def get_all_news():
-    """Get news from all categories"""
-    categories = ['india', 'gurgaon', 'tech', 'business', 'science', 'politics']
-    all_articles = []
+    """Return up to 8 deduplicated articles across all categories"""
+    category_queries = {
+        'india': 'India',
+        'gurgaon': 'Gurgaon OR Gurugram',
+        'tech': 'technology OR AI',
+        'business': 'business OR finance',
+        'science': 'science OR research',
+        'politics': 'politics OR government'
+    }
 
-    for category in categories:
-        articles = fetch_news_by_category(
-            {
-                'india': 'India',
-                'gurgaon': 'Gurgaon OR Gurugram',
-                'tech': 'technology OR AI',
-                'business': 'business OR finance',
-                'science': 'science OR research',
-                'politics': 'politics OR government'
-            }[category],
-            category,
-            page_size=3
-        )
+    all_articles = []
+    for category, query in category_queries.items():
+        articles = fetch_news_by_category(query, category, page_size=3)
         all_articles.extend(articles)
 
-    return jsonify(all_articles)
+    # Deduplicate by URL — same article can appear in multiple category searches
+    seen_urls = set()
+    unique_articles = []
+    for article in all_articles:
+        url = article.get('url', '')
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            unique_articles.append(article)
+
+    # Sort by publishedAt (newest first) and return 8
+    try:
+        unique_articles.sort(key=lambda a: a.get('publishedAt', ''), reverse=True)
+    except Exception:
+        pass
+
+    return jsonify(unique_articles[:8])
 
 @app.route('/api/news/custom/<topic>')
 def get_custom_news(topic: str):
-    """Get news for a custom topic"""
-    articles = fetch_news_by_category(topic, f'custom_{topic}', page_size=5)
+    articles = fetch_news_by_category(topic, f'custom_{topic}', page_size=4)
     return jsonify(articles)
 
 # ============= UTILITY ENDPOINTS =============
 
 @app.route('/')
 def index():
-    """Root route - confirms server is running"""
     return jsonify({
         'status': 'running',
         'message': 'Dashboard API is live!',
-        'endpoints': '/api/health  |  /api/market/all  |  /api/news/all  |  /api/fii-dii'
+        'market_data': 'Powered by Stooq (free, no API key)',
+        'endpoints': '/api/health | /api/market/all | /api/news/all | /api/fii-dii'
     })
 
 @app.route('/api/health')
 def health_check():
-    """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
         'apis': {
             'news': bool(NEWS_API_KEY),
-            'yahoo_finance': True,
+            'market_data': 'stooq',
             'open_meteo': True
         }
     })
 
 @app.route('/api/config')
 def get_config():
-    """Get API configuration status"""
     return jsonify({
         'news_api_configured': bool(NEWS_API_KEY),
+        'market_data_source': 'Stooq (free, no key needed)',
         'message': 'Set NEWS_API_KEY environment variable for news data'
     })
 
@@ -407,32 +423,13 @@ def get_config():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-
-    print("""
+    print(f"""
     ╔════════════════════════════════════════════════════════════╗
     ║         Financial Data & News API Server                  ║
     ╚════════════════════════════════════════════════════════════╝
-
-    Server starting on http://0.0.0.0:{}
-
-    API Endpoints:
-    - GET /api/market/all       - All market data
-    - GET /api/market/sensex    - BSE Sensex
-    - GET /api/market/nifty     - Nifty 50
-    - GET /api/market/dow       - Dow Jones
-    - GET /api/market/forex     - USD/INR
-    - GET /api/market/gold      - Gold prices
-    - GET /api/market/silver    - Silver prices
-    - GET /api/fii-dii          - FII/DII data
-    - GET /api/news/all         - All news
-    - GET /api/news/<category>  - News by category
-    - GET /api/health           - Health check
-
-    Environment Variables:
-    - NEWS_API_KEY              - Get from newsapi.org (FREE)
-    - PORT                      - Server port (default: 5000)
-
-    """.format(port))
-
+    Starting on http://0.0.0.0:{port}
+    Market data: Stooq (free, no API key)
+    News:        NewsAPI (requires NEWS_API_KEY env var)
+    """)
     is_production = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('DYNO')
     app.run(debug=not is_production, host='0.0.0.0', port=port)

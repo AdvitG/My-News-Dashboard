@@ -1643,7 +1643,7 @@
                 const articles = await response.json();
 
                 if (articles && articles.length > 0) {
-                    allNews = articles;
+                    let combined = [...articles];
 
                     // Fetch custom topics if any
                     for (const topic of customTopics) {
@@ -1651,21 +1651,27 @@
                             const customResponse = await fetch(`${API_BASE_URL}/news/custom/${encodeURIComponent(topic)}`);
                             if (customResponse.ok) {
                                 const customArticles = await customResponse.json();
-                                allNews = allNews.concat(customArticles);
+                                combined = combined.concat(customArticles);
                             }
                         } catch (e) {
                             console.error(`Error fetching custom topic ${topic}:`, e);
                         }
                     }
 
+                    // Deduplicate by URL
+                    const seenUrls = new Set();
+                    combined = combined.filter(article => {
+                        const url = article.url || '';
+                        if (!url || seenUrls.has(url)) return false;
+                        seenUrls.add(url);
+                        return true;
+                    });
+
                     // Filter based on user preferences
-                    allNews = allNews.filter(article => {
+                    allNews = combined.filter(article => {
                         if (article.category.startsWith('custom_')) return true;
                         return userPreferences.newsCategories[article.category] !== false;
                     });
-
-                    // Shuffle and limit
-                    allNews = shuffleArray(allNews).slice(0, 40);
                 }
                 // If articles is empty [], allNews stays [] — no fake fallback
             } catch (error) {
