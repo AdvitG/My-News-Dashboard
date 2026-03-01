@@ -37,11 +37,58 @@ def get_cached(key: str):
 def set_cache(key: str, data):
     cache[key] = (datetime.now(), data)
 
-# ============= MARKET DATA (Stooq) =============
-# Stooq is a free financial data provider that works from cloud servers.
-# No API key required. Returns CSV data for stocks, indices, forex, commodities.
-# Symbols: ^bsesn (Sensex), ^nsei (Nifty), ^dji (Dow), usdinr (USD/INR),
-#          xauusd (Gold/USD), xagusd (Silver/USD)
+# ============= MARKET DATA =============
+# Stooq: free CSV API, works from cloud. Used for Dow, USD/INR, Gold, Silver.
+# Yahoo Finance v8: free JSON API, works from cloud (server-side only, no CORS key needed).
+#   Used for Sensex (^BSESN) and Nifty (^NSEI) — Stooq returns "No data" for Indian indices.
+
+def fetch_yahoo_finance(symbol: str) -> Optional[Dict]:
+    """Fetch market data from Yahoo Finance v8 API (server-side only, no API key needed)"""
+    cache_key = f'yf_{symbol}'
+    cached = get_cached(cache_key)
+    if cached:
+        return cached
+
+    try:
+        url = f'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d'
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        response = requests.get(url, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            print(f"Yahoo Finance {symbol}: HTTP {response.status_code}")
+            return None
+
+        payload = response.json()
+        result = payload.get('chart', {}).get('result', [])
+        if not result:
+            print(f"Yahoo Finance {symbol}: no result in response")
+            return None
+
+        meta = result[0].get('meta', {})
+        current_price = float(meta.get('regularMarketPrice', 0) or 0)
+        prev_close = float(meta.get('chartPreviousClose', current_price) or current_price)
+
+        if not current_price:
+            print(f"Yahoo Finance {symbol}: zero price")
+            return None
+
+        change = current_price - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0
+
+        data = {
+            'symbol': symbol,
+            'value': round(current_price, 2),
+            'change': round(change, 2),
+            'percent': round(change_pct, 2),
+            'timestamp': datetime.now().isoformat()
+        }
+        set_cache(cache_key, data)
+        print(f"Yahoo Finance {symbol}: {current_price} (change: {change:+.2f})")
+        return data
+
+    except Exception as e:
+        print(f"Error fetching {symbol} from Yahoo Finance: {e}")
+        return None
 
 def fetch_stooq(symbol: str) -> Optional[Dict]:
     """Fetch market data from Stooq (free, no API key, cloud-friendly)"""
@@ -144,12 +191,12 @@ def compute_silver_inr() -> Optional[Dict]:
 
 @app.route('/api/market/sensex')
 def get_sensex():
-    data = fetch_stooq('^bsesn')
+    data = fetch_yahoo_finance('^BSESN')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/nifty')
 def get_nifty():
-    data = fetch_stooq('^nsei')
+    data = fetch_yahoo_finance('^NSEI')
     return jsonify(data or {'error': 'Unable to fetch data'})
 
 @app.route('/api/market/dow')
@@ -175,8 +222,8 @@ def get_silver():
 @app.route('/api/market/all')
 def get_all_markets():
     return jsonify({
-        'sensex': fetch_stooq('^bsesn'),
-        'nifty': fetch_stooq('^nsei'),
+        'sensex': fetch_yahoo_finance('^BSESN'),
+        'nifty': fetch_yahoo_finance('^NSEI'),
         'dow': fetch_stooq('^dji'),
         'forex': fetch_stooq('usdinr'),
         'gold': compute_gold_inr(),
