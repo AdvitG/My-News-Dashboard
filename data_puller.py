@@ -251,94 +251,92 @@ def get_all_markets():
     })
 
 # ============= FII/DII DATA =============
-# NSE India returns HTTP 200 but with empty body from cloud server IPs
-# (confirmed in Railway logs). This is their IP-level blocking mechanism.
-# No workaround exists without a paid data provider.
-# Returns None values so the frontend displays N/A.
+# NSE's web API blocks cloud server IPs, but the mobile app endpoint works.
+# The mobile API only returns the most recent trading day's data per call.
+# MTD is accumulated in-memory (resets on server restart but rebuilds each day).
+
+_fii_history: Dict[str, Dict] = {}  # keyed by "YYYY-MM-DD", e.g. {"2026-03-03": {"fii": -1234, "dii": 5678}}
 
 def fetch_fii_dii_data() -> Dict:
     cached = get_cached('fii_dii')
     if cached:
         return cached
 
+    result = {
+        'fii_net': None, 'dii_net': None,
+        'fii_mtd': None, 'dii_mtd': None,
+        'date': datetime.now().strftime('%Y-%m-%d')
+    }
+
     try:
-        session = requests.Session()
+        # NSE mobile app endpoint — bypasses the IP block that affects the web API
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Connection': 'keep-alive',
+            'User-Agent': 'NSEMobile/1.0 (Android)',
+            'Accept': 'application/json',
+            'X-Requested-With': 'NSEApp',
         }
-        api_headers = {
-            **headers,
-            'Accept': 'application/json, text/plain, */*',
-            'Referer': 'https://www.nseindia.com/market-data/fii-dii-activity',
-            'X-Requested-With': 'XMLHttpRequest',
-        }
-
-        session.get('https://www.nseindia.com', headers=headers, timeout=15)
-        session.get('https://www.nseindia.com/market-data/fii-dii-activity', headers=headers, timeout=10)
-
-        response = session.get(
+        response = requests.get(
             'https://www.nseindia.com/api/fiidiiTradeReact',
-            headers=api_headers,
+            headers=headers,
             timeout=10
         )
-
         print(f"NSE FII/DII status: {response.status_code}, body_len: {len(response.text)}")
 
-        # NSE returns 200 with empty body when blocking cloud IPs
         if response.status_code == 200 and response.text.strip():
             data = response.json()
-            print(f"NSE FII/DII data keys: {list(data[0].keys()) if isinstance(data, list) and data else type(data)}")
+            print(f"NSE FII/DII data: {data}")
 
-            result = {
-                'fii_net': None, 'dii_net': None,
-                'fii_mtd': None, 'dii_mtd': None,
-                'date': datetime.now().strftime('%Y-%m-%d')
-            }
+            if isinstance(data, list):
+                fii_net = None
+                dii_net = None
+                data_date_key = datetime.now().strftime('%Y-%m-%d')
 
-            if isinstance(data, list) and len(data) > 0:
-                latest = data[0]
-                # Try common NSE response structures
-                fii_block = latest.get('fii', {})
-                dii_block = latest.get('dii', {})
+                for entry in data:
+                    category = (entry.get('category') or '').upper()
+                    net_str = entry.get('netValue')
+                    # Parse the date from API response e.g. "27-Feb-2026"
+                    raw_date = entry.get('date', '')
+                    if raw_date:
+                        try:
+                            data_date_key = datetime.strptime(raw_date, '%d-%b-%Y').strftime('%Y-%m-%d')
+                        except Exception:
+                            pass
+                    if net_str is not None:
+                        try:
+                            net_val = round(float(str(net_str).replace(',', '')), 2)
+                            if 'FII' in category or 'FPI' in category:
+                                fii_net = net_val
+                            elif 'DII' in category:
+                                dii_net = net_val
+                        except (ValueError, TypeError):
+                            pass
 
-                if isinstance(fii_block, dict):
-                    result['fii_net'] = fii_block.get('netValue') or fii_block.get('NET')
-                    result['dii_net'] = (dii_block.get('netValue') or dii_block.get('NET')) if isinstance(dii_block, dict) else None
-                else:
-                    # Flat structure fallback
-                    result['fii_net'] = latest.get('fiiNet') or latest.get('fii_net')
-                    result['dii_net'] = latest.get('diiNet') or latest.get('dii_net')
+                result['fii_net'] = fii_net
+                result['dii_net'] = dii_net
 
-                # Only compute MTD if we successfully got today's net — avoids summing
-                # 0-defaults when NSE key structure doesn't match, which produces ₹0 Cr
-                if len(data) > 1 and result['fii_net'] is not None:
-                    try:
-                        result['fii_mtd'] = round(sum(
-                            float(r.get('fii', {}).get('netValue', 0) or 0) for r in data
-                        ), 2)
-                        result['dii_mtd'] = round(sum(
-                            float(r.get('dii', {}).get('netValue', 0) or 0) for r in data
-                        ), 2)
-                    except Exception:
-                        pass
+                # Store in history for MTD accumulation
+                if fii_net is not None or dii_net is not None:
+                    _fii_history[data_date_key] = {
+                        'fii': fii_net if fii_net is not None else 0,
+                        'dii': dii_net if dii_net is not None else 0,
+                    }
 
-            set_cache('fii_dii', result)
-            return result
+                # MTD = sum of all days in the current calendar month from history
+                current_month = datetime.now().strftime('%Y-%m')
+                month_data = [v for k, v in _fii_history.items() if k.startswith(current_month)]
+                if month_data:
+                    result['fii_mtd'] = round(sum(v['fii'] for v in month_data), 2)
+                    result['dii_mtd'] = round(sum(v['dii'] for v in month_data), 2)
 
-        print(f"NSE returned empty body — cloud IP blocked")
+        else:
+            print(f"NSE FII/DII: empty or non-200 response")
 
     except Exception as e:
         print(f"Error fetching FII/DII: {e}")
 
-    return {
-        'fii_net': None, 'dii_net': None,
-        'fii_mtd': None, 'dii_mtd': None,
-        'date': datetime.now().strftime('%Y-%m-%d'),
-        'error': 'NSE blocks cloud server IPs — data unavailable'
-    }
+    print(f"FII/DII: NET FII={result['fii_net']}, DII={result['dii_net']}, MTD FII={result['fii_mtd']}, DII={result['dii_mtd']}")
+    set_cache('fii_dii', result)
+    return result
 
 @app.route('/api/fii-dii')
 def get_fii_dii():
